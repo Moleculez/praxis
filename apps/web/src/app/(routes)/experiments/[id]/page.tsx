@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { useExperiment, useDeleteExperiment } from "@/hooks/use-experiments";
+import { useExperiment, useDeleteExperiment, useUpdateExperimentStatus } from "@/hooks/use-experiments";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { Experiment } from "@/types";
@@ -23,6 +23,7 @@ export default function ExperimentDetailPage({
   const { id } = use(params);
   const { data: experiment, isLoading, error } = useExperiment(id);
   const deleteMutation = useDeleteExperiment();
+  const statusMutation = useUpdateExperimentStatus();
   const router = useRouter();
 
   if (isLoading) {
@@ -74,6 +75,53 @@ export default function ExperimentDetailPage({
             <span className="text-sm text-muted-foreground">
               Created {formatDate(experiment.created_at)}
             </span>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {experiment.status === "draft" && (
+              <button
+                onClick={() => statusMutation.mutate({ id, status: "running" })}
+                disabled={statusMutation.isPending}
+                className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                {statusMutation.isPending ? "Updating..." : "Start Running"}
+              </button>
+            )}
+            {experiment.status === "running" && (
+              <>
+                <button
+                  onClick={() => statusMutation.mutate({ id, status: "completed" })}
+                  disabled={statusMutation.isPending}
+                  className="px-3 py-1.5 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  {statusMutation.isPending ? "Updating..." : "Mark Completed"}
+                </button>
+                <button
+                  onClick={() => statusMutation.mutate({ id, status: "failed" })}
+                  disabled={statusMutation.isPending}
+                  className="px-3 py-1.5 rounded-md border border-red-200 text-red-600 text-sm hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950 disabled:opacity-50"
+                >
+                  {statusMutation.isPending ? "Updating..." : "Mark Failed"}
+                </button>
+              </>
+            )}
+            {experiment.status === "completed" && (
+              <button
+                onClick={() => statusMutation.mutate({ id, status: "promoted" })}
+                disabled={statusMutation.isPending}
+                className="px-3 py-1.5 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {statusMutation.isPending ? "Updating..." : "Promote"}
+              </button>
+            )}
+            {experiment.status === "failed" && (
+              <button
+                onClick={() => statusMutation.mutate({ id, status: "draft" })}
+                disabled={statusMutation.isPending}
+                className="px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 disabled:opacity-50"
+              >
+                {statusMutation.isPending ? "Updating..." : "Retry"}
+              </button>
+            )}
           </div>
         </div>
         <button

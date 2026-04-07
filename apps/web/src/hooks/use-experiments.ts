@@ -44,3 +44,18 @@ export function useDeleteExperiment() {
     },
   });
 }
+
+export function useUpdateExperimentStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: Experiment["status"] }) =>
+      apiFetch<Experiment>(`/experiments/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.experiments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.experiments.detail(id) });
+    },
+  });
+}

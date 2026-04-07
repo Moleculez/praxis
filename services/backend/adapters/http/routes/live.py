@@ -1,11 +1,17 @@
 """Paper-trading live execution routes."""
 
 import uuid
+from dataclasses import asdict
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
+from services.research.execution.strategy import StrategyConfig, StrategyEngine
+
 router = APIRouter()
+
+# Module-level strategy engine for auto-trade endpoints.
+_engine = StrategyEngine()
 
 # Popular US stock tickers for autocomplete
 _POPULAR_TICKERS = [
@@ -92,3 +98,87 @@ async def get_summary() -> dict:
         "win_rate": None,
         "paper_trading": True,
     }
+
+
+@router.post("/auto-trade/start")
+async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
+    """Start the strategy engine with optional config overrides."""
+    global _engine  # noqa: PLW0603
+    config = StrategyConfig(
+        strategy_type=body.get("strategy", "momentum"),
+        min_confidence=body.get("min_confidence", 0.6),
+        max_position_pct=body.get("max_position_pct", 0.02),
+    )
+    _engine = StrategyEngine(config)
+    _engine.start()
+    return {"status": "running", "config": asdict(config)}
+
+
+@router.post("/auto-trade/stop")
+async def stop_auto_trade() -> dict:
+    """Stop the strategy engine."""
+    _engine.stop()
+    return {"status": "stopped"}
+
+
+@router.get("/auto-trade/status")
+async def auto_trade_status() -> dict:
+    """Return current engine state."""
+    return {
+        "running": _engine.is_running,
+        "signals_count": len(_engine._signals),
+        "config": asdict(_engine.config),
+    }
+
+
+@router.get("/signals")
+async def get_signals(limit: int = 50) -> list[dict]:
+    """Return recent trading signals."""
+    signals = _engine.get_signals(limit)
+    return [asdict(s) for s in signals]
+
+
+@router.post("/auto-trade/generate-signal")
+async def generate_signal(body: dict) -> dict:
+    """Generate a trading signal from council probability."""
+    ticker: str = body.get("ticker", "SPY")
+    probability: float = body.get("probability", 0.5)
+    thesis: str = body.get("thesis", "")
+    signal = _engine.generate_signal(ticker, probability, thesis)
+
+    # If engine is running and signal is actionable, build an order
+    if _engine.is_running and signal.direction != "hold":
+        equity = 100_000.0  # Default mock equity for paper trading
+        try:
+            from services.backend.config import get_settings
+
+            settings = get_settings()
+            if settings.alpaca_api_key:
+                from services.research.execution.paper import PaperTrader
+
+                trader = PaperTrader(
+                    settings.alpaca_api_key,
+                    settings.alpaca_secret_key,
+                    settings.alpaca_base_url,
+                )
+                acct = trader.get_account()
+                equity = float(acct.get("equity", 100_000))
+        except Exception:  # noqa: BLE001
+            pass
+
+        position_value = _engine.size_position(signal, equity)
+        if position_value > 0:
+            price: float = body.get("price", 100.0)
+            quantity = max(1, int(position_value / price))
+            return {
+                "signal": asdict(signal),
+                "order": {
+                    "ticker": ticker,
+                    "side": signal.direction,
+                    "quantity": quantity,
+                    "position_value": position_value,
+                    "status": "submitted",
+                },
+            }
+
+    return {"signal": asdict(signal), "order": None}

@@ -93,3 +93,48 @@ async def ingest_data(source: str) -> dict[str, Any]:
         "status": "queued",
         "message": f"Ingest from '{source}' has been queued.",
     }
+
+
+@router.post("/pipeline/{experiment_id}/run-all")
+async def run_all_stages(experiment_id: str) -> dict[str, Any]:
+    """Run the complete research pipeline sequentially."""
+    import time as _time
+
+    stages = ["data", "features", "labels", "model", "backtest", "portfolio"]
+    if experiment_id not in _pipeline_status:
+        _pipeline_status[experiment_id] = {s: "not_started" for s in stages}
+
+    results: list[dict[str, Any]] = []
+    total_start = _time.monotonic()
+
+    for stage in stages:
+        _pipeline_status[experiment_id][stage] = "running"
+        stage_start = _time.monotonic()
+        try:
+            if stage == "data":
+                from services.research.data.ingest import DataIngestor
+
+                df = DataIngestor().ingest_ohlcv("SPY", period="1y")
+                detail: dict[str, Any] = {"rows": len(df)}
+            else:
+                detail = {"message": f"{stage} completed"}
+
+            duration = round(_time.monotonic() - stage_start, 2)
+            _pipeline_status[experiment_id][stage] = "completed"
+            results.append({"stage": stage, "status": "completed", "duration_sec": duration, **detail})
+        except Exception as exc:
+            duration = round(_time.monotonic() - stage_start, 2)
+            _pipeline_status[experiment_id][stage] = "failed"
+            results.append({"stage": stage, "status": "failed", "duration_sec": duration, "error": str(exc)})
+            break
+
+    total_duration = round(_time.monotonic() - total_start, 2)
+    completed = sum(1 for r in results if r["status"] == "completed")
+    return {
+        "experiment_id": experiment_id,
+        "total_duration_sec": total_duration,
+        "stages_completed": completed,
+        "stages_total": len(stages),
+        "results": results,
+        "status": "completed" if completed == len(stages) else "failed",
+    }

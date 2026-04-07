@@ -2,6 +2,18 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import {
+  FlaskConical,
+  Lightbulb,
+  Activity,
+  BarChart3,
+  Plus,
+  Eye,
+  Radio,
+  Brain,
+  ClipboardList,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useExperiments } from "@/hooks/use-experiments";
 import { useHypotheses } from "@/hooks/use-hypotheses";
 import { apiFetch } from "@/lib/api";
@@ -56,14 +68,21 @@ function StatCard({
   label,
   value,
   loading,
+  icon: Icon,
+  iconColor,
 }: {
   label: string;
   value: string | number;
   loading: boolean;
+  icon: LucideIcon;
+  iconColor: string;
 }) {
   return (
     <div className="rounded-lg border p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        <Icon size={16} className={iconColor} />
+        <p className="text-sm text-muted-foreground">{label}</p>
+      </div>
       {loading ? (
         <Skeleton className="mt-1 h-7 w-16" />
       ) : (
@@ -73,12 +92,21 @@ function StatCard({
   );
 }
 
-function ActionCard({ label, href }: { label: string; href: string }) {
+function ActionCard({
+  label,
+  href,
+  icon: Icon,
+}: {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-center rounded-lg border px-4 py-6 text-sm font-medium transition-colors hover:bg-muted/50"
+      className="flex items-center justify-center gap-2 rounded-lg border px-4 py-6 text-sm font-medium transition-all hover:bg-muted/50 hover:scale-[1.02] hover:border-foreground/20"
     >
+      <Icon size={16} className="text-muted-foreground" />
       {label}
     </Link>
   );
@@ -108,7 +136,7 @@ export default function HomePage() {
   );
 
   return (
-    <main className="mx-auto max-w-5xl space-y-10 px-4 py-10">
+    <main className="mx-auto max-w-7xl space-y-10 px-4 py-10">
       <section>
         <h1 className="text-3xl font-bold">Praxis Dashboard</h1>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -116,18 +144,30 @@ export default function HomePage() {
             label="Total Experiments"
             value={experiments.data?.length ?? 0}
             loading={experiments.isLoading}
+            icon={FlaskConical}
+            iconColor="text-blue-500"
           />
           <StatCard
             label="Total Hypotheses"
             value={hypotheses.data?.length ?? 0}
             loading={hypotheses.isLoading}
+            icon={Lightbulb}
+            iconColor="text-amber-500"
           />
           <StatCard
             label="Pipeline Status"
             value={pipelineRunning ? "Running" : "Idle"}
             loading={experiments.isLoading}
+            icon={Activity}
+            iconColor="text-green-500"
           />
-          <StatCard label="Paper Trading" value="Off" loading={false} />
+          <StatCard
+            label="Paper Trading"
+            value="Off"
+            loading={false}
+            icon={BarChart3}
+            iconColor="text-purple-500"
+          />
         </div>
       </section>
 
@@ -157,7 +197,7 @@ export default function HomePage() {
             {recentExperiments.map((exp) => (
               <li
                 key={exp.id}
-                className="flex items-center justify-between px-4 py-2"
+                className="flex items-center justify-between border-l-2 border-l-transparent px-4 py-2 transition-colors hover:bg-muted/30 hover:border-l-foreground/20"
               >
                 <span className="line-clamp-1 text-sm">{exp.name}</span>
                 <div className="flex items-center gap-3">
@@ -198,7 +238,7 @@ export default function HomePage() {
             {recentHypotheses.map((h) => (
               <li
                 key={h.id}
-                className="flex items-center justify-between px-4 py-2"
+                className="flex items-center justify-between border-l-2 border-l-transparent px-4 py-2 transition-colors hover:bg-muted/30 hover:border-l-foreground/20"
               >
                 <span className="line-clamp-1 text-sm">{h.claim}</span>
                 <StatusBadge status={h.status} />
@@ -210,40 +250,38 @@ export default function HomePage() {
 
       <section>
         <h2 className="text-lg font-semibold">Quick Actions</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <ActionCard label="New Experiment" href="/experiments?new=true" />
-          <ActionCard label="New Hypothesis" href="/hypotheses" />
-          <ActionCard label="View Portfolio" href="/portfolios" />
-          <ActionCard label="Paper Trading" href="/live" />
-          <ActionCard label="Intelligence" href="/intelligence" />
-          <ActionCard label="Audit Log" href="/audit" />
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+          <ActionCard label="New Experiment" href="/experiments?new=true" icon={Plus} />
+          <ActionCard label="New Hypothesis" href="/hypotheses" icon={Lightbulb} />
+          <ActionCard label="View Portfolio" href="/portfolios" icon={Eye} />
+          <ActionCard label="Paper Trading" href="/live" icon={Radio} />
+          <ActionCard label="Intelligence" href="/intelligence" icon={Brain} />
+          <ActionCard label="Audit Log" href="/audit" icon={ClipboardList} />
         </div>
       </section>
 
-      <section>
-        <h2 className="text-lg font-semibold">System Health</h2>
-        <div className="mt-3 rounded-lg border p-4">
-          {health.isLoading ? (
-            <Skeleton className="h-5 w-48" />
-          ) : health.isError ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              API unreachable
+      {/* Health footer bar */}
+      <footer className="flex items-center gap-6 rounded-lg border px-4 py-2 text-xs text-muted-foreground">
+        {health.isLoading ? (
+          <Skeleton className="h-4 w-48" />
+        ) : health.isError ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            API unreachable
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <HealthDot ok={health.data?.status === "ok"} />
+              API: {health.data?.status ?? "unknown"}
             </div>
-          ) : (
-            <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <HealthDot ok={health.data?.status === "ok"} />
-                API: {health.data?.status ?? "unknown"}
-              </div>
-              <div className="flex items-center gap-2">
-                <HealthDot ok={health.data?.database === "ok"} />
-                DB: {health.data?.database ?? "unknown"}
-              </div>
+            <div className="flex items-center gap-2">
+              <HealthDot ok={health.data?.database === "ok"} />
+              DB: {health.data?.database ?? "unknown"}
             </div>
-          )}
-        </div>
-      </section>
+          </>
+        )}
+      </footer>
     </main>
   );
 }

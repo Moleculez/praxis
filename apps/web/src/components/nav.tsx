@@ -89,8 +89,8 @@ export function Nav() {
 
       {/* Sidebar */}
       <nav
-        className={`fixed md:sticky top-0 left-0 z-40 flex flex-col gap-1 p-4 w-56 border-r min-h-screen bg-sidebar text-sidebar-foreground transition-transform md:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed top-0 left-0 z-40 flex flex-col gap-1 p-4 w-56 h-screen overflow-y-auto border-r bg-sidebar text-sidebar-foreground transition-transform md:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="flex items-center gap-2 mb-6">

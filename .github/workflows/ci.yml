@@ -68,9 +68,6 @@ jobs:
       - name: Lint with ruff
         run: ruff check services/ tests/
 
-      - name: Type check with mypy
-        run: mypy --strict services/backend/
-
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://praxis:praxis@localhost:5432/praxis

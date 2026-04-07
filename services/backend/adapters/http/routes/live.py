@@ -7,10 +7,34 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
+# Popular US stock tickers for autocomplete
+_POPULAR_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "NVDA", "META", "TSLA", "BRK.B",
+    "UNH", "JNJ", "V", "XOM", "JPM", "PG", "MA", "HD", "CVX", "MRK", "ABBV",
+    "LLY", "PEP", "KO", "COST", "AVGO", "WMT", "MCD", "CSCO", "TMO", "ACN",
+    "ABT", "DHR", "NEE", "LIN", "TXN", "PM", "RTX", "UNP", "ORCL", "AMD",
+    "CRM", "NFLX", "DIS", "INTC", "QCOM", "AMGN", "INTU", "LOW", "GS", "BA",
+    # ETFs
+    "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VEA", "VWO", "BND", "TLT",
+    "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "ARKK", "SOXX",
+    # Crypto (Alpaca supports these)
+    "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "ADA/USD",
+]
+
 # In-memory state for paper trading (resets on restart).
 _MAX_ORDERS = 10_000
 _orders: list[dict] = []
 _positions: dict[str, dict] = {}
+
+
+@router.get("/symbols")
+async def search_symbols(q: str = "") -> list[str]:
+    """Search ticker symbols for autocomplete."""
+    if not q:
+        return _POPULAR_TICKERS[:20]
+    q_upper = q.upper()
+    matches = [t for t in _POPULAR_TICKERS if t.startswith(q_upper)]
+    return matches[:15]
 
 
 @router.get("/positions")

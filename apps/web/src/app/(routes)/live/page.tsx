@@ -7,6 +7,7 @@ import {
   useOrders,
   useTradingSummary,
   useSubmitOrder,
+  useSymbolSearch,
 } from "@/hooks/use-live";
 
 function formatCurrency(value: number): string {
@@ -58,6 +59,8 @@ export default function LivePage() {
   const submitOrder = useSubmitOrder();
 
   const [ticker, setTicker] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const { data: suggestions } = useSymbolSearch(ticker);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -111,14 +114,42 @@ export default function LivePage() {
             <label htmlFor="ticker" className="text-xs font-medium text-muted-foreground">
               Ticker
             </label>
-            <input
-              id="ticker"
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
-              placeholder="AAPL"
-              className="h-9 rounded-md border bg-background px-3 text-sm uppercase"
-            />
+            <div className="relative">
+              <input
+                id="ticker"
+                type="text"
+                value={ticker}
+                onChange={(e) => {
+                  setTicker(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => {
+                  if (ticker) setShowSuggestions(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setShowSuggestions(false), 150);
+                }}
+                placeholder="AAPL"
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm uppercase"
+                autoComplete="off"
+              />
+              {showSuggestions && suggestions && suggestions.length > 0 && (
+                <ul className="absolute top-full left-0 right-0 z-10 mt-1 rounded-md border bg-background shadow-lg max-h-48 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <li
+                      key={s}
+                      onMouseDown={() => {
+                        setTicker(s);
+                        setShowSuggestions(false);
+                      }}
+                      className="px-3 py-2 text-sm hover:bg-muted cursor-pointer"
+                    >
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">Side</label>

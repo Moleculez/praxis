@@ -52,6 +52,15 @@ export function useTradingSummary() {
   });
 }
 
+export function useSymbolSearch(query: string) {
+  return useQuery({
+    queryKey: ["live", "symbols", query],
+    queryFn: () => apiFetch<string[]>(`/live/symbols?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useSubmitOrder() {
   const qc = useQueryClient();
   return useMutation({

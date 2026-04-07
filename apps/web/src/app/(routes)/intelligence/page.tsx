@@ -1,6 +1,7 @@
 "use client";
 
 import { useIntelBriefs, useCrawlerSources } from "@/hooks/use-intelligence";
+import { Markdown } from "@/components/markdown";
 
 const PERSONAS = [
   {
@@ -47,6 +48,10 @@ const PERSONAS = [
   },
 ] as const;
 
+const OVERVIEW_TEXT = `Cogito is Praxis's intelligence subsystem. It coordinates a multi-provider PhD council where each persona runs on a **different LLM provider** to ensure genuinely independent reasoning. The council evaluates claims extracted from crawled data sources, produces **Brier-scored briefs**, and surfaces trade ideas to a discretionary PM layer.
+
+Discretionary positions are capped at **20% gross**, **8 positions max**, **2% per position**, and are **never auto-executed**.`;
+
 function BrierBar({ weight }: { weight: number }) {
   const pct = Math.round(weight * 100);
   return (
@@ -64,20 +69,44 @@ function BrierBar({ weight }: { weight: number }) {
 }
 
 function StatusDot({ status }: { status: "implemented" | "stub" }) {
-  const color = status === "implemented" ? "bg-green-500" : "bg-gray-400";
+  const color =
+    status === "implemented"
+      ? "bg-green-500 dark:bg-green-400"
+      : "bg-gray-400 dark:bg-gray-600";
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
-function InfoCard({ children, variant = "muted" }: { children: React.ReactNode; variant?: "muted" | "error" }) {
+function InfoCard({
+  children,
+  variant = "muted",
+}: {
+  children: React.ReactNode;
+  variant?: "muted" | "error";
+}) {
   const styles =
     variant === "error"
       ? "border-destructive/50 text-destructive"
       : "text-muted-foreground";
   return (
-    <div className={`rounded-lg border bg-card p-6 text-center text-sm ${styles}`}>
+    <div
+      className={`rounded-lg border bg-card p-6 text-center text-sm ${styles}`}
+    >
       {children}
     </div>
   );
+}
+
+function formatLastUpdated(ts: string): string {
+  const date = new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
 
 export default function IntelligencePage() {
@@ -99,22 +128,19 @@ export default function IntelligencePage() {
 
       <section className="rounded-lg border bg-card p-6">
         <h2 className="text-lg font-semibold">Cogito Overview</h2>
-        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-          Cogito is Praxis&apos;s intelligence subsystem. It coordinates a
-          multi-provider PhD council where each persona runs on a different LLM
-          provider to ensure genuinely independent reasoning. The council
-          evaluates claims extracted from crawled data sources, produces
-          Brier-scored briefs, and surfaces trade ideas to a discretionary PM
-          layer. Discretionary positions are capped at 20% gross, 8 positions
-          max, 2% per position, and are never auto-executed.
-        </p>
+        <div className="mt-2">
+          <Markdown content={OVERVIEW_TEXT} className="text-sm text-muted-foreground leading-relaxed" />
+        </div>
       </section>
 
       <section>
         <h2 className="text-lg font-semibold">Council Personas</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PERSONAS.map((p) => (
-            <div key={p.name} className="rounded-lg border bg-card p-4 space-y-3">
+            <div
+              key={p.name}
+              className="rounded-lg border bg-card p-4 space-y-3"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">{p.name}</h3>
                 <span
@@ -150,12 +176,18 @@ export default function IntelligencePage() {
               {briefs.data.map((b) => (
                 <div
                   key={b.id}
-                  className="rounded-lg border bg-card p-4 space-y-1"
+                  className="rounded-lg border bg-card p-4 space-y-2"
                 >
                   <p className="text-sm font-medium">{b.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {b.claim_count} claims — {b.status}
                   </p>
+                  {b.summary && (
+                    <Markdown
+                      content={b.summary}
+                      className="text-xs text-muted-foreground"
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -187,11 +219,16 @@ export default function IntelligencePage() {
                   className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
                 >
                   <StatusDot status={s.status} />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{s.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {s.description}
                     </p>
+                    {s.last_updated && (
+                      <p className="mt-0.5 text-xs text-muted-foreground/70">
+                        Updated {formatLastUpdated(s.last_updated)}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

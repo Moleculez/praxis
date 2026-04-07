@@ -1,7 +1,12 @@
 """Health endpoint tests."""
 
+import pytest
 
-def test_health_endpoint_exists():
-    """Verify health endpoint contract — will be expanded with httpx TestClient."""
-    # TODO: Use httpx AsyncClient with app fixture once backend is wired
-    assert True  # Placeholder to confirm test infrastructure works
+
+@pytest.mark.anyio
+async def test_health_returns_ok(client):
+    """GET /health returns 200 with status ok."""
+    response = await client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"

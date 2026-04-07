@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { apiFetch } from "@/lib/api";
 import type { Experiment } from "@/types";
@@ -17,5 +17,19 @@ export function useExperiment(id: string) {
     queryKey: queryKeys.experiments.detail(id),
     queryFn: () => apiFetch<Experiment>(`/experiments/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useCreateExperiment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch<Experiment>("/experiments", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.experiments.all });
+    },
   });
 }

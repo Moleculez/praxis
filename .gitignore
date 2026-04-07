@@ -69,6 +69,18 @@ docker-compose.override.yml
 # Worktrees
 .claude/worktrees/
 
+# Plans
+.claude/plans/
+
 # Logs
 *.log
 logs/
+
+# Crawler cache
+.crawler_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# pnpm
+.pnpm-store/

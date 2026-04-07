@@ -1,7 +1,7 @@
 # Crawler source registry — rate limits and config
 sources:
   edgar:
-    base_url: "https://www.sec.gov/cgi-bin/browse-edgar"
+    base_url: "https://data.sec.gov/submissions"
     rate_limit_per_sec: 0.1  # SEC fair access
   fred:
     base_url: "https://api.stlouisfed.org/fred"
@@ -13,11 +13,26 @@ sources:
     note: "Requires paid API access via PRAW"
     rate_limit_per_sec: 1.0
   news:
-    note: "NewsAPI, Marketaux, or GDELT"
+    note: "NewsAPI or GDELT"
     rate_limit_per_sec: 1.0
+  gdelt:
+    base_url: "https://api.gdeltproject.org/api/v2/doc/doc"
+    rate_limit_per_sec: 1.0
+    note: "Free, no API key required"
   transcripts:
     note: "Vendor API (Bigdata.com recommended)"
     rate_limit_per_sec: 1.0
-  crypto:
-    note: "Binance (public klines) + CoinGecko (public market chart)"
+  jin10:
+    base_url: "https://flash-api.jin10.com"
     rate_limit_per_sec: 1.0
+    note: "Chinese financial flash news and economic calendar"
+  crypto:
+    binance_base_url: "https://api.binance.com/api/v3"
+    coingecko_base_url: "https://api.coingecko.com/api/v3"
+    rate_limit_per_sec: 1.0
+    note: "Binance klines + CoinGecko market chart, no auth"
+  market:
+    yahoo_chart_url: "https://query1.finance.yahoo.com/v8/finance/chart"
+    yahoo_rss_url: "https://feeds.finance.yahoo.com/rss/2.0/headline"
+    rate_limit_per_sec: 1.0
+    note: "Yahoo Finance OHLCV and news, no auth"

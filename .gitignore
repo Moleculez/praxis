@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
@@ -10,11 +11,18 @@ dist/
 build/
 .venv/
 venv/
+*.whl
+*.egg
+.coverage
+htmlcov/
+.hypothesis/
 
 # Node
 node_modules/
 .next/
 dist/
+*.tsbuildinfo
+.eslintcache
 
 # Turborepo
 .turbo/
@@ -25,19 +33,26 @@ data/clean/*
 !data/raw/.gitkeep
 !data/clean/.gitkeep
 *.parquet
+*.feather
+*.arrow
 
 # Secrets
 .env
 .env.local
 .env.*.local
+.env.production
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # MLflow
 mlruns/
@@ -45,3 +60,13 @@ mlruns/
 
 # MinIO
 minio-data/
+
+# Docker
+docker-compose.override.yml
+
+# Worktrees
+.claude/worktrees/
+
+# Logs
+*.log
+logs/

@@ -7,3 +7,5 @@ data/
 *.parquet
 .mypy_cache
 .ruff_cache
+.claude/
+apps/

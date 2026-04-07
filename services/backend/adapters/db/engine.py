@@ -13,15 +13,25 @@ from sqlalchemy.ext.asyncio import (
 from services.backend.config import get_settings
 
 
+def create_engine(url: str, *, echo: bool = False) -> AsyncEngine:
+    """Create an async engine from a URL (useful for testing and app factory)."""
+    return create_async_engine(url, echo=echo)
+
+
+def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Create a session factory bound to the given engine."""
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
 @lru_cache
 def _build_engine() -> AsyncEngine:
     settings = get_settings()
-    return create_async_engine(settings.database_url, echo=settings.debug)
+    return create_engine(settings.database_url, echo=settings.debug)
 
 
 @lru_cache
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
-    return async_sessionmaker(_build_engine(), expire_on_commit=False)
+    return create_session_factory(_build_engine())
 
 
 async def get_session() -> AsyncGenerator[AsyncSession]:

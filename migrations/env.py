@@ -11,15 +11,14 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from services.backend.adapters.db.models import Base
+
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# When ORM models are defined, import their MetaData here:
-#   from services.backend.domain.models import Base
-#   target_metadata = Base.metadata
-target_metadata = None
+target_metadata = Base.metadata
 
 # Prefer DATABASE_URL from environment over the .ini default.
 database_url = os.environ.get("DATABASE_URL")

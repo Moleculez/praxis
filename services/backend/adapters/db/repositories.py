@@ -59,7 +59,10 @@ class SqlExperimentRepository(ExperimentRepository):
             id=row.id,
             name=row.name,
             status=ExperimentStatus(row.status),
-            created_at=row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=UTC),
+            created_at=(
+                row.created_at if row.created_at.tzinfo
+                else row.created_at.replace(tzinfo=UTC)
+            ),
             manifest=row.manifest,
         )
 

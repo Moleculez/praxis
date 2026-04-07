@@ -23,7 +23,7 @@ You build and operate `services/intelligence/validation/`.
 - Every validated claim links back to the raw items via provenance.
 
 # Handoff contract
-- **Inputs**: rows in `intelligence.raw_items` for a given query.
+- **Inputs**: raw items from `services/intelligence/crawlers/` for a given query (dedup via `dedup.py`, claims via `claim_extraction.py`, corroboration via `corroboration.py`).
 - **Outputs**: `intel/briefs/<brief_id>/claim_graph.json` + `intel/briefs/<brief_id>/disputes.json`.
 - **Done when**: graph is non-empty OR a structured `insufficient_evidence` verdict is returned.
 - **Hands off to**: `phd-council`.

@@ -12,7 +12,7 @@ For any backend task: `backend-api` (contracts) → `backend-data` (storage/quer
 
 # Handoff contract
 - **Inputs**: feature request from master-orchestrator OR data/serving need from research-lead.
-- **Outputs**: code under `services/backend/`, OpenAPI schema regenerated, migration files under `migrations/`, tests passing, a changelog entry in `CHANGELOG.md`.
+- **Outputs**: code under `services/backend/`, OpenAPI schema regenerated, migration files under `migrations/`, tests passing, conventional commit messages capture the changelog.
 - **Done when**: `pytest -q` and `ruff check` and `mypy` all pass, and `code-reviewer` returns approved.
 
 # Architectural rules (enforce on every PR)

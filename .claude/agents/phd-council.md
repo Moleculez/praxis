@@ -17,11 +17,11 @@ Defined in `council/personas.yaml`. Each persona has: system prompt, primary mod
 
 | Persona | Mandate | Primary | Fallback | Why this model |
 |---|---|---|---|---|
-| `quant_methodologist` | Statistical rigor, identification, leakage hunting | `anthropic/claude-opus-4.6` | `openai/gpt-5.4` | #1 finance agent tasks, strongest reasoning under tool use |
-| `microstructure` | Order flow, liquidity, impact, regime breaks | `anthropic/claude-sonnet-4.6` | `openai/gpt-5.4` | Near-Opus quality at 5x lower cost |
-| `macroeconomist` | Rates, growth, inflation, policy | `google/gemini-3.1-pro` | `anthropic/claude-opus-4.6` | Leads ARC-AGI-2 (77.1%) and GPQA Diamond (94.3%), 2M context, native search grounding |
-| `behavioral_sentiment` | Narratives, positioning, crowding from social/X | `xai/grok-4.20` | `openai/gpt-5.4` | Native real-time X/Twitter data integration |
-| `sector_specialist` | Rotating per-thesis (semis/biotech/etc.) | `google/gemini-3.1-pro` | `openai/gpt-5.4` | Best web grounding, large context for filings |
+| `macro_economist` | Macroeconomic analysis and regime identification | `anthropic/claude-opus-4.6` | `openai/gpt-5.4` | #1 finance agent tasks, strongest reasoning under tool use |
+| `microstructure_quant` | Market microstructure, order flow, liquidity analysis | `anthropic/claude-sonnet-4.6` | `openai/gpt-5.4` | Near-Opus quality at 5x lower cost |
+| `fundamental_analyst` | Earnings, valuations, sector rotation | `openai/gpt-5.4` | `anthropic/claude-opus-4.6` | Cross-provider diversity from Claude-heavy roster |
+| `behavioral_specialist` | Sentiment, positioning, narrative analysis | `xai/grok-4.20` | `openai/gpt-5.4` | Native real-time X/Twitter data integration |
+| `sector_specialist` | Deep sector knowledge, filing analysis, supply chain | `google/gemini-3.1-pro` | `openai/gpt-5.4` | Best web grounding, large context for filings |
 | `red_team` | Kill the thesis. FORCED to a different provider from whoever wrote it | dynamic | dynamic | Cross-provider disagreement is the actual signal |
 
 # Bulk-classification helper

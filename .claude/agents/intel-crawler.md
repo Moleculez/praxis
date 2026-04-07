@@ -50,6 +50,6 @@ In Mode B, the crawler module becomes a thin wrapper around Bigdata.com's API an
 
 # Handoff contract
 - **Inputs**: query spec (tickers, themes, date range, sources) from intel-lead.
-- **Outputs**: rows in `intelligence.raw_items` (Postgres), with provenance.
+- **Outputs**: raw items persisted via per-source client classes in `services/intelligence/crawlers/` (EdgarClient, FredClient, NewsClient, RedditClient, ArxivClient, TranscriptClient), with provenance.
 - **Done when**: crawler run logged, item count > 0 (or `source_unavailable` returned), no rate-limit violations.
 - **Hands off to**: `intel-validator`.

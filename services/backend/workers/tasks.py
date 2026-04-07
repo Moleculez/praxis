@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from arq.connections import RedisSettings
+
+from services.backend.config import get_settings
+
 
 async def run_experiment(ctx: dict[str, Any], experiment_id: str) -> str:
     """Execute an experiment pipeline in the background."""
@@ -21,4 +25,4 @@ class WorkerSettings:
     """Arq worker configuration."""
 
     functions = [run_experiment, run_backtest]
-    redis_settings = None  # configured at startup from Settings.redis_url
+    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)

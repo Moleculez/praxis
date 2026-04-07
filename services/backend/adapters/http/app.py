@@ -1,28 +1,36 @@
 """FastAPI application factory."""
 
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from services.backend.adapters.http.middleware import domain_error_handler
 from services.backend.adapters.http.routes import experiments, health, hypotheses
+from services.backend.config import get_settings
 from services.backend.domain.errors import DomainError
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # startup
+    settings = get_settings()
+    app.state.engine = create_async_engine(
+        settings.database_url, echo=settings.debug
+    )
     yield
-    # shutdown
+    await app.state.engine.dispose()
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(title="Praxis", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

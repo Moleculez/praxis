@@ -5,12 +5,15 @@ export const queryKeys = {
   },
   hypotheses: {
     all: ["hypotheses"] as const,
+    detail: (id: string) => ["hypotheses", id] as const,
   },
   portfolios: {
     all: ["portfolios"] as const,
+    detail: (id: string) => ["portfolios", id] as const,
   },
   audit: {
     decisions: ["audit", "decisions"] as const,
+    incidents: ["audit", "incidents"] as const,
   },
   intelligence: {
     briefs: ["intelligence", "briefs"] as const,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from services.backend.adapters.db.models import Base
 from services.backend.adapters.http.middleware import domain_error_handler
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=settings.debug)
     app.state.engine = engine
+    app.state.session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
     # Auto-create tables for SQLite dev mode (no Alembic needed)
     if settings.is_sqlite:

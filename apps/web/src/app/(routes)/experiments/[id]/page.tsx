@@ -4,11 +4,11 @@ export default function ExperimentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold tracking-tight">Experiment Detail</h1>
-      <p className="mt-2 text-muted-foreground">
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold tracking-tight">Experiment Detail</h1>
+      <p className="text-muted-foreground">
         Experiment details and backtest results — coming soon.
       </p>
-    </main>
+    </div>
   );
 }

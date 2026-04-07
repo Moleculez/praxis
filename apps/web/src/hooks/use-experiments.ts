@@ -23,11 +23,22 @@ export function useExperiment(id: string) {
 export function useCreateExperiment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
+    mutationFn: (data: { name: string; manifest?: Record<string, unknown> }) =>
       apiFetch<Experiment>("/experiments", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(data),
       }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.experiments.all });
+    },
+  });
+}
+
+export function useDeleteExperiment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/experiments/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.experiments.all });
     },

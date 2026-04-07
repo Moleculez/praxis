@@ -14,8 +14,10 @@ venv/
 # Node
 node_modules/
 .next/
-.turbo/
 dist/
+
+# Turborepo
+.turbo/
 
 # Data
 data/raw/*

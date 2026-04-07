@@ -1,0 +1,43 @@
+# Council personas — 6 members on different providers
+personas:
+  - id: macro_economist
+    name: "Macro Economist"
+    provider: "anthropic/claude-opus-4.6"
+    role: "Macroeconomic analysis and regime identification"
+    brier_weight: 1.0
+
+  - id: microstructure_quant
+    name: "Microstructure Quant"
+    provider: "anthropic/claude-sonnet-4.6"
+    role: "Market microstructure, order flow, liquidity analysis"
+    brier_weight: 1.0
+
+  - id: fundamental_analyst
+    name: "Fundamental Analyst"
+    provider: "openai/gpt-5.4"
+    role: "Earnings, valuations, sector rotation"
+    brier_weight: 1.0
+
+  - id: behavioral_specialist
+    name: "Behavioral Specialist"
+    provider: "xai/grok-4.20"
+    role: "Sentiment, positioning, narrative analysis"
+    brier_weight: 1.0
+
+  - id: sector_specialist
+    name: "Sector Specialist"
+    provider: "google/gemini-3.1-pro"
+    role: "Deep sector knowledge, filing analysis, supply chain"
+    brier_weight: 1.0
+
+  - id: red_team
+    name: "Red Team"
+    provider: "dynamic"  # forced != thesis author provider
+    role: "Devil's advocate, find flaws in thesis"
+    brier_weight: 1.0
+
+brier_scoring:
+  ewma_halflife_days: 90
+  underperformer_weight: 0.5
+  overperformer_weight: 1.5
+  weight_bounds: [0.3, 2.0]

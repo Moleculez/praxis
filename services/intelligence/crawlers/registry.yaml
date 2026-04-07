@@ -1,0 +1,20 @@
+# Crawler source registry — rate limits and config
+sources:
+  edgar:
+    base_url: "https://www.sec.gov/cgi-bin/browse-edgar"
+    rate_limit_per_sec: 0.1  # SEC fair access
+  fred:
+    base_url: "https://api.stlouisfed.org/fred"
+    rate_limit_per_sec: 1.0
+  arxiv:
+    base_url: "https://export.arxiv.org/api"
+    rate_limit_per_sec: 0.33  # 3 second delay
+  reddit:
+    note: "Requires paid API access via PRAW"
+    rate_limit_per_sec: 1.0
+  news:
+    note: "NewsAPI, Marketaux, or GDELT"
+    rate_limit_per_sec: 1.0
+  transcripts:
+    note: "Vendor API (Bigdata.com recommended)"
+    rate_limit_per_sec: 1.0

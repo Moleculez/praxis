@@ -4,21 +4,34 @@
   "private": true,
   "scripts": {
     "dev": "turbo dev",
+    "dev:api": "uvicorn services.backend.main:app --reload --port 8000",
+    "dev:web": "cd apps/web && next dev",
+    "dev:all": "concurrently \"pnpm run dev:api\" \"pnpm run dev:web\"",
     "build": "turbo build",
+    "start": "uvicorn services.backend.main:app --host 0.0.0.0 --port 8000",
     "test": "turbo test",
+    "test:py": "python -m pytest tests/ -q",
+    "test:all": "pnpm run test:py && pnpm run test",
     "lint": "turbo lint",
+    "lint:py": "ruff check services/ tests/",
+    "lint:all": "pnpm run lint:py && pnpm run lint",
     "typecheck": "turbo typecheck",
+    "typecheck:py": "mypy --strict services/backend/",
     "format": "turbo format",
-    "dev:infra": "docker compose up -d",
-    "dev:infra:down": "docker compose down",
+    "format:py": "ruff format services/ tests/",
+    "format:all": "pnpm run format:py && pnpm run format",
     "migrate": "alembic upgrade head",
-    "test:py": "cd services/backend && python -m pytest -q",
-    "lint:py": "ruff check services/",
-    "typecheck:py": "mypy --strict services/",
-    "format:py": "ruff format services/"
+    "migrate:create": "alembic revision --autogenerate -m",
+    "setup": "cp -n .env.example .env 2>/dev/null; pnpm install && pip install -e services/backend[dev]",
+    "clean": "rm -rf .turbo .next node_modules apps/web/node_modules __pycache__ .mypy_cache .ruff_cache .pytest_cache data/*.db",
+    "infra": "docker compose --profile prod up -d",
+    "infra:down": "docker compose --profile prod down",
+    "infra:ollama": "docker compose --profile local-llm up -d",
+    "db:reset": "rm -f data/praxis.db && pnpm run dev:api"
   },
   "devDependencies": {
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "concurrently": "^9.0.0"
   },
   "packageManager": "pnpm@9.0.0"
 }

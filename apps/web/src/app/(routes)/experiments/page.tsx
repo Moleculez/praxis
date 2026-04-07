@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useExperiments, useCreateExperiment } from "@/hooks/use-experiments";
 import { formatDate } from "@/lib/utils";
 import type { Experiment } from "@/types";
@@ -17,11 +18,21 @@ const statusColors: Record<Experiment["status"], string> = {
 export default function ExperimentsPage() {
   const { data: experiments, isLoading, error } = useExperiments();
   const createMutation = useCreateExperiment();
+  const searchParams = useSearchParams();
+  const prefillHypothesis = searchParams.get("hypothesis_id") ?? "";
+
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [strategy, setStrategy] = useState("");
   const [universe, setUniverse] = useState("SP500");
   const [hypothesisId, setHypothesisId] = useState("");
+
+  useEffect(() => {
+    if (prefillHypothesis) {
+      setHypothesisId(prefillHypothesis);
+      setShowForm(true);
+    }
+  }, [prefillHypothesis]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -154,9 +165,25 @@ export default function ExperimentsPage() {
       )}
 
       {experiments && experiments.length === 0 && !showForm && (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-muted-foreground">No experiments yet.</p>
-          <p className="text-sm text-muted-foreground mt-1">Create one to get started.</p>
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <svg
+            className="mx-auto h-10 w-10 text-muted-foreground/50"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714a2.25 2.25 0 0 0 .659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-1.47 4.41a2.25 2.25 0 0 1-2.133 1.59H8.603a2.25 2.25 0 0 1-2.134-1.59L5 14.5m14 0H5"
+            />
+          </svg>
+          <p className="mt-3 text-sm font-medium text-muted-foreground">No experiments yet</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">
+            Create your first experiment to start the validation pipeline.
+          </p>
         </div>
       )}
 
@@ -186,10 +213,10 @@ export default function ExperimentsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {(exp.manifest?.strategy as string) || "—"}
+                    {(exp.manifest?.strategy as string) || "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {(exp.manifest?.universe as string) || "—"}
+                    {(exp.manifest?.universe as string) || "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {formatDate(exp.created_at)}

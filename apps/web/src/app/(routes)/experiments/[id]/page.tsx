@@ -1,10 +1,16 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { useExperiment, useDeleteExperiment, useUpdateExperimentStatus } from "@/hooks/use-experiments";
+import {
+  useExperiment,
+  useDeleteExperiment,
+  useUpdateExperimentStatus,
+  useUpdateExperiment,
+} from "@/hooks/use-experiments";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
+import { JsonView } from "@/components/json-view";
 import type { Experiment } from "@/types";
 
 const statusColors: Record<Experiment["status"], string> = {
@@ -24,7 +30,13 @@ export default function ExperimentDetailPage({
   const { data: experiment, isLoading, error } = useExperiment(id);
   const deleteMutation = useDeleteExperiment();
   const statusMutation = useUpdateExperimentStatus();
+  const updateMutation = useUpdateExperiment();
   const router = useRouter();
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editingManifest, setEditingManifest] = useState(false);
+  const [manifestDraft, setManifestDraft] = useState("");
+  const [manifestError, setManifestError] = useState("");
 
   if (isLoading) {
     return (
@@ -40,7 +52,7 @@ export default function ExperimentDetailPage({
     return (
       <div className="space-y-4">
         <Link href="/experiments" className="text-sm text-muted-foreground hover:underline">
-          ← Back to experiments
+          &larr; Back to experiments
         </Link>
         <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-900 p-4">
           <p className="text-sm text-red-600 dark:text-red-400">Experiment not found or failed to load.</p>
@@ -53,16 +65,38 @@ export default function ExperimentDetailPage({
   const hasManifest = Object.keys(manifest).length > 0;
 
   function handleDelete() {
-    if (!confirm("Delete this experiment?")) return;
     deleteMutation.mutate(id, {
       onSuccess: () => router.push("/experiments"),
     });
   }
 
+  function startEditManifest() {
+    setManifestDraft(JSON.stringify(manifest, null, 2));
+    setManifestError("");
+    setEditingManifest(true);
+  }
+
+  function saveManifest() {
+    try {
+      const parsed = JSON.parse(manifestDraft) as Record<string, unknown>;
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        setManifestError("Manifest must be a JSON object");
+        return;
+      }
+      setManifestError("");
+      updateMutation.mutate(
+        { id, data: { manifest: parsed } },
+        { onSuccess: () => setEditingManifest(false) },
+      );
+    } catch {
+      setManifestError("Invalid JSON");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Link href="/experiments" className="text-sm text-muted-foreground hover:underline">
-        ← Back to experiments
+        &larr; Back to experiments
       </Link>
 
       <div className="flex items-start justify-between gap-4">
@@ -124,13 +158,33 @@ export default function ExperimentDetailPage({
             )}
           </div>
         </div>
-        <button
-          onClick={handleDelete}
-          disabled={deleteMutation.isPending}
-          className="px-3 py-1.5 rounded-md border border-red-200 text-red-600 text-sm hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950 disabled:opacity-50"
-        >
-          {deleteMutation.isPending ? "Deleting..." : "Delete"}
-        </button>
+        <div>
+          {confirmingDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Are you sure?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+                className="px-3 py-1.5 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Yes"}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="px-3 py-1.5 rounded-md border text-sm hover:bg-muted"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              className="px-3 py-1.5 rounded-md border border-red-200 text-red-600 text-sm hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -139,11 +193,11 @@ export default function ExperimentDetailPage({
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Strategy</dt>
-              <dd>{(manifest.strategy as string) || "—"}</dd>
+              <dd>{(manifest.strategy as string) || "\u2014"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Universe</dt>
-              <dd>{(manifest.universe as string) || "—"}</dd>
+              <dd>{(manifest.universe as string) || "\u2014"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Hypothesis</dt>
@@ -152,7 +206,7 @@ export default function ExperimentDetailPage({
                   <Link href={`/hypotheses/${manifest.hypothesis_id}`} className="hover:underline">
                     {(manifest.hypothesis_id as string).slice(0, 8)}...
                   </Link>
-                ) : "—"}
+                ) : "\u2014"}
               </dd>
             </div>
             <div className="flex justify-between">
@@ -167,9 +221,9 @@ export default function ExperimentDetailPage({
           <div className="space-y-2">
             {[
               { label: "CPCV", desc: "Combinatorial Purged Cross-Validation", done: false },
-              { label: "DSR ≥ 0.95", desc: "Deflated Sharpe Ratio", done: false },
-              { label: "PBO ≤ 0.5", desc: "Probability of Backtest Overfitting", done: false },
-              { label: "LLM Panel", desc: "Multi-LLM verification (≥2 providers)", done: false },
+              { label: "DSR \u2265 0.95", desc: "Deflated Sharpe Ratio", done: false },
+              { label: "PBO \u2264 0.5", desc: "Probability of Backtest Overfitting", done: false },
+              { label: "LLM Panel", desc: "Multi-LLM verification (\u22652 providers)", done: false },
             ].map((step) => (
               <div key={step.label} className="flex items-center gap-3">
                 <div className={`h-2.5 w-2.5 rounded-full ${step.done ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"}`} />
@@ -183,20 +237,55 @@ export default function ExperimentDetailPage({
         </div>
       </div>
 
-      {hasManifest && (
-        <div className="rounded-lg border p-4">
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Full Manifest</h2>
-          <pre className="overflow-x-auto rounded-md bg-muted p-4 text-sm font-mono">
-            <code>{JSON.stringify(manifest, null, 2)}</code>
-          </pre>
+      <div className="rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Full Manifest</h2>
+          {editingManifest ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveManifest}
+                disabled={updateMutation.isPending}
+                className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {updateMutation.isPending ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => setEditingManifest(false)}
+                className="px-3 py-1 rounded-md border text-xs hover:bg-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={startEditManifest}
+              className="px-3 py-1 rounded-md border text-xs hover:bg-muted"
+            >
+              Edit
+            </button>
+          )}
         </div>
-      )}
 
-      {!hasManifest && (
-        <div className="rounded-lg border border-dashed p-4 text-center">
-          <p className="text-sm text-muted-foreground">No manifest configured. Edit this experiment to add strategy parameters.</p>
-        </div>
-      )}
+        {editingManifest ? (
+          <div className="space-y-2">
+            <textarea
+              value={manifestDraft}
+              onChange={(e) => setManifestDraft(e.target.value)}
+              rows={12}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {manifestError && (
+              <p className="text-sm text-red-500">{manifestError}</p>
+            )}
+          </div>
+        ) : hasManifest ? (
+          <JsonView data={manifest} label="Manifest" />
+        ) : (
+          <div className="rounded-lg border border-dashed p-4 text-center">
+            <p className="text-sm text-muted-foreground">No manifest configured. Click Edit to add strategy parameters.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

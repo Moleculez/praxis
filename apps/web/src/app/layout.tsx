@@ -19,11 +19,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Providers>
           <div className="flex min-h-screen">
             <Nav />
-            <main className="flex-1 p-6">{children}</main>
+            <main className="flex-1 p-6 md:p-8 overflow-auto">{children}</main>
           </div>
         </Providers>
       </body>

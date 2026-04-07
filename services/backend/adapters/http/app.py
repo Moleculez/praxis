@@ -12,7 +12,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from services.backend.adapters.db.models import Base
 from services.backend.adapters.http.middleware import domain_error_handler
-from services.backend.adapters.http.routes import audit, experiments, health, hypotheses
+from services.backend.adapters.http.routes import (
+    audit,
+    experiments,
+    health,
+    hypotheses,
+    intelligence,
+    live,
+    portfolios,
+)
 from services.backend.config import get_settings
 from services.backend.domain.errors import DomainError
 
@@ -49,4 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(experiments.router, prefix="/experiments", tags=["experiments"])
     app.include_router(hypotheses.router, prefix="/hypotheses", tags=["hypotheses"])
     app.include_router(audit.router, prefix="/audit", tags=["audit"])
+    app.include_router(portfolios.router, prefix="/portfolios", tags=["portfolios"])
+    app.include_router(intelligence.router, prefix="/intelligence", tags=["intelligence"])
+    app.include_router(live.router, prefix="/live", tags=["live"])
     return app

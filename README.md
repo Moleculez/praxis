@@ -7,184 +7,152 @@ Multi-agent quantitative research and paper-trading platform with an integrated 
 - [Python 3.12+](https://www.python.org/)
 - [Node.js 20+](https://nodejs.org/)
 - [pnpm 9+](https://pnpm.io/) (`corepack enable && corepack prepare pnpm@9 --activate`)
-- [Docker](https://www.docker.com/) (optional — only needed for production infra or Ollama)
+- [Docker](https://www.docker.com/) (optional -- only for production infra or local LLM)
 
 ## Quick Start
 
-Zero infrastructure needed for dev — uses SQLite and local filesystem by default.
+No Docker or external services needed. SQLite and local filesystem by default.
 
 ```bash
-# 1. Clone and install
 git clone https://github.com/Moleculez/praxis.git
 cd praxis
-cp .env.example .env          # defaults work out of the box
-pnpm install                  # installs turbo + frontend deps
+cp .env.example .env
+pnpm install
 pip install -e "services/backend[dev]"
 
-# 2. Start development (SQLite auto-creates tables on first run)
-uvicorn services.backend.main:app --reload  # backend on :8000
-pnpm run dev                                # frontend on :3000
+# Start backend (auto-creates SQLite DB + tables)
+uvicorn services.backend.main:app --reload    # http://localhost:8000
+
+# Start frontend (separate terminal)
+pnpm run dev                                   # http://localhost:3000
 ```
 
-### Production setup (Docker)
+## Dev vs Production
 
-For the full stack with Postgres, TimescaleDB, Redis, MinIO, and MLflow:
+| | Dev (default) | Production |
+|-|---------------|------------|
+| **Database** | SQLite (`data/praxis.db`) | Postgres + TimescaleDB |
+| **Cache/Queue** | None (inline) | Redis + Arq |
+| **Artifacts** | Local filesystem | MinIO (S3) |
+| **Tracking** | Disabled | MLflow |
+| **LLM** | Ollama or API keys | OpenRouter gateway |
+| **Setup** | `pip install` + `uvicorn` | `docker compose --profile prod up` |
+
+### Production setup
 
 ```bash
-# Uncomment the Postgres DATABASE_URL in .env, then:
-docker compose --profile prod up -d    # starts all infra
+# Edit .env: uncomment DATABASE_URL=postgresql+asyncpg://...
+docker compose --profile prod up -d
 pip install -e "services/backend[prod,dev]"
-pnpm run migrate                       # Alembic migrations
+pnpm run migrate
 uvicorn services.backend.main:app --reload
 ```
 
 ## Scripts
 
-All scripts run from the repo root via `pnpm run <script>`.
-
-### Turborepo (JS workspaces)
-
 | Script | Description |
 |--------|-------------|
-| `pnpm run dev` | Start all workspace dev servers |
-| `pnpm run build` | Build all workspaces (cached) |
+| `pnpm run dev` | Start frontend dev server (Turborepo) |
+| `pnpm run build` | Build frontend (cached) |
 | `pnpm run test` | Run frontend tests |
 | `pnpm run lint` | Lint frontend |
-| `pnpm run typecheck` | TypeScript type checking |
-| `pnpm run format` | Format frontend code |
-
-### Python
-
-| Script | Description |
-|--------|-------------|
+| `pnpm run typecheck` | TypeScript type check |
 | `pnpm run test:py` | Run pytest |
-| `pnpm run lint:py` | Lint with ruff |
-| `pnpm run typecheck:py` | Type check with mypy --strict |
-| `pnpm run format:py` | Format with ruff |
-
-### Infrastructure
-
-| Script | Description |
-|--------|-------------|
-| `pnpm run dev:infra` | Start Docker services (Postgres, TimescaleDB, Redis, MinIO, MLflow) |
-| `pnpm run dev:infra:down` | Stop Docker services |
-| `pnpm run migrate` | Run Alembic migrations |
+| `pnpm run lint:py` | Lint Python with ruff |
+| `pnpm run typecheck:py` | Type check Python with mypy |
+| `pnpm run format:py` | Format Python with ruff |
+| `pnpm run dev:infra` | Start Docker infra (prod profile) |
+| `pnpm run dev:infra:down` | Stop Docker infra |
+| `pnpm run migrate` | Run Alembic migrations (Postgres only) |
 
 ## Project Structure
 
 ```
 praxis/
   apps/web/                    # Next.js 15 + shadcn/ui frontend
-    src/app/(routes)/          #   Pages: research, experiments, portfolios, live, intelligence, agents, audit
-    src/components/            #   Nav sidebar, providers, UI components
-    src/hooks/                 #   TanStack Query hooks (useExperiments, useHypotheses)
-    src/lib/                   #   API client, query keys, utilities
-    src/types/                 #   TypeScript types aligned with backend schemas
+    src/app/(routes)/          #   research, experiments, portfolios, live, intelligence, agents, audit
+    src/components/            #   Nav sidebar, providers
+    src/hooks/                 #   TanStack Query hooks
+    src/lib/                   #   API client, query keys, cn()
+    src/types/                 #   TypeScript types (aligned with backend)
   services/
     backend/                   # FastAPI (hexagonal architecture)
-      domain/                  #   Pure domain models, errors, ports, audit logging
-      adapters/http/           #   FastAPI routes, middleware, dependency injection
-      adapters/db/             #   Async SQLAlchemy ORM, repositories
-      schemas/                 #   Pydantic v2 request/response models + VERIFIER_V1
-      workers/                 #   Arq async job workers
-      monitoring/              #   Health checks
+      domain/                  #   Models, errors, ports, audit logging (zero framework imports)
+      adapters/http/           #   Routes, middleware, dependency injection
+      adapters/db/             #   SQLAlchemy ORM + repositories (SQLite or Postgres)
+      schemas/                 #   Pydantic v2 models + VERIFIER_V1
+      workers/                 #   Background tasks (optional Redis/Arq)
     research/                  # Quant research pipeline
-      data/                    #   Market data ingestion (OHLCV, FRED, EDGAR)
-      features/                #   Feature engineering (Polars), dollar bars, microstructure
-      labels/                  #   Triple-barrier + meta-labels (mlfinpy)
+      data/                    #   Data ingestion (OHLCV, FRED, EDGAR)
+      features/                #   Feature engineering (Polars)
+      labels/                  #   Triple-barrier + meta-labels
       models/                  #   LightGBM, sequence models, linear floor
       validation/              #   CPCV, Deflated Sharpe, PBO
       portfolios/              #   HRP + NCO allocation
-      execution/               #   Paper trading only (Alpaca/IBKR)
+      execution/               #   Paper trading only
     intelligence/              # Cogito subsystem
       crawlers/                #   EDGAR, FRED, news, Reddit, arXiv, transcripts
-      validation/              #   Dedup (embeddings), claim extraction, corroboration
-      council/                 #   Multi-LLM PhD council (6 personas, 5 providers)
-      pm/                      #   Discretionary PM (pre-mortem, kill criteria)
-  migrations/                  # Alembic (forward-only, async)
-  tests/                       # pytest (API, research, intelligence schema tests)
-  data/{raw,clean}/            # Market data (gitignored)
-  experiments/                 # Backtest experiment artifacts
-  hypotheses/                  # Research hypotheses
-  features/registry.yaml       # Feature registry
-  intel/                       # Intelligence outputs (briefs, trade ideas, scorecards)
-  audit/                       # Append-only decision + incident logs (JSONL)
+      validation/              #   Dedup, claim extraction, corroboration
+      council/                 #   Multi-LLM PhD council (6 personas)
+      pm/                      #   Discretionary PM
+  migrations/                  # Alembic (Postgres only, forward-only)
+  tests/                       # pytest + Vitest
+  data/                        # SQLite DB, raw/clean data, artifacts (gitignored)
+  audit/                       # Append-only JSONL logs
   .claude/agents/              # 33 Claude Code agent definitions
 ```
 
-## API Endpoints
+## API
 
-The FastAPI backend serves on port 8000:
+Backend serves on `http://localhost:8000`. All mutations logged to `audit/decisions.jsonl`.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/experiments` | List experiments |
-| GET | `/experiments/{id}` | Get experiment by ID |
+| GET | `/experiments/{id}` | Get experiment |
 | POST | `/experiments` | Create experiment |
 | GET | `/hypotheses` | List hypotheses |
-| GET | `/hypotheses/{id}` | Get hypothesis by ID |
+| GET | `/hypotheses/{id}` | Get hypothesis |
 | POST | `/hypotheses` | Create hypothesis |
-
-All mutations are logged to `audit/decisions.jsonl` via audit middleware.
-
-## Infrastructure
-
-### Dev (default — no Docker needed)
-
-| Component | Tech | Notes |
-|-----------|------|-------|
-| Database | SQLite | Auto-created at `data/praxis.db` |
-| Artifacts | Local filesystem | `data/artifacts/` |
-| Background jobs | Inline | No Redis needed |
-| LLM | Ollama or API keys | Optional |
-
-### Production (`--profile prod`)
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| Postgres | 5432 | Metadata (experiments, hypotheses, audit) |
-| TimescaleDB | 5433 | Time-series (bars, ticks, PnL) |
-| Redis | 6379 | Cache + Arq job queue |
-| MinIO | 9000 / 9001 (console) | S3-compatible artifact storage |
-| MLflow | 5000 | Experiment tracking |
-| Ollama | 11434 | Local LLM (optional, `--profile local-llm`) |
 
 ## Local LLM (Ollama)
 
-For development without API keys, run a local LLM via Ollama:
+For development without API keys:
 
 ```bash
-# Start Ollama alongside other services
 docker compose --profile local-llm up -d
-
-# Pull a model (first time only)
 docker exec praxis-ollama-1 ollama pull llama3.1
-
-# Enable local mode in .env
-echo "USE_LOCAL_LLM=true" >> .env
 ```
 
-The LLM gateway automatically routes through Ollama's OpenAI-compatible endpoint (`localhost:11434/v1`) when `USE_LOCAL_LLM=true`. The council config also supports `gateway: "ollama"` for local persona routing.
+Then in `.env`:
+```
+USE_LOCAL_LLM=true
+OLLAMA_MODEL=llama3.1
+```
 
-Recommended models for dev:
-- `llama3.1` -- general purpose (8B, fast)
-- `llama3.1:70b` -- higher quality (needs 40GB+ VRAM)
-- `mistral` -- lighter alternative
-- `codellama` -- code-focused tasks
+The LLM gateway routes through Ollama's OpenAI-compatible endpoint at `localhost:11434/v1`.
+
+Recommended models: `llama3.1` (8B, fast), `mistral`, `codellama`.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in API keys:
+Copy `.env.example` to `.env`. Defaults work for dev -- no keys needed to start.
 
-- **Database/Redis/MinIO** -- defaults work with Docker Compose
-- **LLM Gateway** -- `OPENROUTER_API_KEY` (recommended single gateway) or individual provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `XAI_API_KEY`)
-- **Local LLM** -- set `USE_LOCAL_LLM=true` and `OLLAMA_MODEL=llama3.1` to skip API keys entirely
-- **Paper Trading** -- `ALPACA_API_KEY` + `ALPACA_SECRET_KEY` for paper trading via Alpaca
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `DATABASE_URL` | `sqlite+aiosqlite:///data/praxis.db` | Swap for Postgres in prod |
+| `REDIS_URL` | *(empty)* | Optional, enables Arq workers |
+| `MINIO_ENDPOINT` | *(empty)* | Optional, enables S3 artifacts |
+| `MLFLOW_TRACKING_URI` | *(empty)* | Optional, enables experiment tracking |
+| `OPENROUTER_API_KEY` | *(empty)* | One key for all LLM providers |
+| `USE_LOCAL_LLM` | `false` | Route LLM calls through Ollama |
+| `OLLAMA_MODEL` | `llama3.1` | Model for local inference |
+| `ALPACA_API_KEY` | *(empty)* | Paper trading |
 
 ## Claude Code Agents
 
-Praxis ships with 33 agent definitions in `.claude/agents/` organized into teams:
+33 agent definitions in `.claude/agents/`, organized into teams:
 
 | Team | Agents | Lead |
 |------|--------|------|
@@ -195,20 +163,20 @@ Praxis ships with 33 agent definitions in `.claude/agents/` organized into teams
 | Cross-cutting | code-reviewer, llm-verifier | -- |
 | Workflow | master-orchestrator, commit, commit-push-pr | -- |
 
-The `master-orchestrator` routes requests to the appropriate team lead. Commit agents (`commit`, `commit-push-pr`) handle git operations without co-author attribution lines.
+`master-orchestrator` routes requests to team leads. `commit` and `commit-push-pr` handle git without co-author lines.
 
-See `CLAUDE.md` for full conventions, hard rules, and the verifier schema.
+See `CLAUDE.md` for conventions, hard rules, and verifier schema.
 
-## Key Conventions
+## Key Rules
 
 - **No live trading** -- paper only, always
-- **No factor without a causal story** -- `research-causal` must approve
-- **Promotion gates** -- DSR >= 0.95, PBO <= 0.5, multi-LLM panel approval
-- **Hexagonal backend** -- domain code has zero framework imports
-- **Server Components by default** in the frontend
+- **No factor without a causal story**
+- **Promotion gates** -- DSR >= 0.95, PBO <= 0.5, multi-LLM approval
+- **Hexagonal backend** -- domain has zero framework imports
+- **Server Components by default** in frontend
 - **Tests are not optional**
-- **Audit log is append-only** -- never truncate or overwrite
-- **Cogito rules** -- never auto-execute discretionary trades, 20% sleeve cap, separate PnL books
+- **Audit log is append-only**
+- **Cogito** -- never auto-execute trades, 20% sleeve cap, separate PnL books
 
 ## License
 

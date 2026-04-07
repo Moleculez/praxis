@@ -1,0 +1,9 @@
+node_modules
+.next
+__pycache__
+.git
+.env
+data/
+*.parquet
+.mypy_cache
+.ruff_cache

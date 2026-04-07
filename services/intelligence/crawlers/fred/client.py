@@ -7,7 +7,7 @@ Requires API key (env var FRED_API_KEY). Respects robots.txt.
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class FredClient:
@@ -16,7 +16,7 @@ class FredClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def fetch(self, series_id: str, start_date: str | None = None, end_date: str | None = None) -> list[dict[str, Any]]:
+    def fetch(self, series_id: str, start_date: str | None = None, end_date: str | None = None) -> list[RawItem]:
         """Fetch a FRED time series.
 
         Args:
@@ -25,7 +25,7 @@ class FredClient:
             end_date: ISO-format end date filter.
 
         Returns:
-            List of observation dicts with date and value.
+            List of RawItem with observation data.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

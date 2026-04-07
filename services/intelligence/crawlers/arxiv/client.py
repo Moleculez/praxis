@@ -6,7 +6,7 @@ Rate limit: 0.33 req/sec (3-second delay between requests). Respects robots.txt.
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class ArxivClient:
@@ -15,7 +15,7 @@ class ArxivClient:
     def __init__(self) -> None:
         pass
 
-    def fetch(self, query: str, max_results: int = 50, category: str = "q-fin") -> list[dict[str, Any]]:
+    def fetch(self, query: str, max_results: int = 50, category: str = "q-fin") -> list[RawItem]:
         """Fetch papers from arXiv matching a query.
 
         Args:
@@ -24,7 +24,7 @@ class ArxivClient:
             category: arXiv category filter (default: q-fin).
 
         Returns:
-            List of paper metadata dicts.
+            List of RawItem with paper metadata.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

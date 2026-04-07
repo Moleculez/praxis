@@ -6,7 +6,7 @@ Rate limit: 1.0 req/sec default. Respects robots.txt and Reddit API ToS.
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class RedditClient:
@@ -17,7 +17,7 @@ class RedditClient:
         self.client_secret = client_secret
         self.user_agent = user_agent
 
-    def fetch(self, subreddit: str, query: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def fetch(self, subreddit: str, query: str | None = None, limit: int = 100) -> list[RawItem]:
         """Fetch posts from a subreddit, optionally filtered by query.
 
         Args:
@@ -26,7 +26,7 @@ class RedditClient:
             limit: Maximum number of posts to return.
 
         Returns:
-            List of post metadata dicts.
+            List of RawItem with post metadata.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

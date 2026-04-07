@@ -28,5 +28,10 @@ export async function apiFetch<T>(
     throw error;
   }
 
+  // 204 No Content — return undefined (used by DELETE endpoints)
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }

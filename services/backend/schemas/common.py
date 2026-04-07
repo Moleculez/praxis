@@ -10,5 +10,9 @@ class PaginatedResponse[T](BaseModel):
     limit: int
 
 
+class StatusUpdate(BaseModel):
+    status: str
+
+
 class ErrorResponse(BaseModel):
     detail: str

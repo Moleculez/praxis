@@ -11,6 +11,11 @@ class ExperimentCreate(BaseModel):
     manifest: dict[str, Any] = {}
 
 
+class ExperimentUpdate(BaseModel):
+    name: str | None = None
+    manifest: dict[str, Any] | None = None
+
+
 class ExperimentResponse(BaseModel):
     id: str
     name: str

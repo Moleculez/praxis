@@ -20,6 +20,9 @@ class ExperimentRepository(ABC):
     @abstractmethod
     async def update(self, experiment: Experiment) -> Experiment: ...
 
+    @abstractmethod
+    async def delete(self, experiment_id: str) -> bool: ...
+
 
 class HypothesisRepository(ABC):
     @abstractmethod
@@ -33,3 +36,6 @@ class HypothesisRepository(ABC):
 
     @abstractmethod
     async def update(self, hypothesis: Hypothesis) -> Hypothesis: ...
+
+    @abstractmethod
+    async def delete(self, hypothesis_id: str) -> bool: ...

@@ -10,6 +10,11 @@ class HypothesisCreate(BaseModel):
     mechanism: str
 
 
+class HypothesisUpdate(BaseModel):
+    claim: str | None = None
+    mechanism: str | None = None
+
+
 class HypothesisResponse(BaseModel):
     id: str
     claim: str

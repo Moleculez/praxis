@@ -53,6 +53,14 @@ class SqlExperimentRepository(ExperimentRepository):
             await self._session.flush()
         return experiment
 
+    async def delete(self, experiment_id: str) -> bool:
+        row = await self._session.get(ExperimentRow, experiment_id)
+        if row is None:
+            return False
+        await self._session.delete(row)
+        await self._session.flush()
+        return True
+
     @staticmethod
     def _to_domain(row: ExperimentRow) -> Experiment:
         return Experiment(
@@ -102,6 +110,14 @@ class SqlHypothesisRepository(HypothesisRepository):
             row.status = hypothesis.status.value
             await self._session.flush()
         return hypothesis
+
+    async def delete(self, hypothesis_id: str) -> bool:
+        row = await self._session.get(HypothesisRow, hypothesis_id)
+        if row is None:
+            return False
+        await self._session.delete(row)
+        await self._session.flush()
+        return True
 
     @staticmethod
     def _to_domain(row: HypothesisRow) -> Hypothesis:

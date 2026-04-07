@@ -5,8 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.backend.adapters.db.repositories import SqlHypothesisRepository
 from services.backend.adapters.http.dependencies import get_session
-from services.backend.domain.models import Hypothesis
-from services.backend.schemas.hypotheses import HypothesisCreate, HypothesisResponse
+from services.backend.domain.models import Hypothesis, HypothesisStatus
+from services.backend.schemas.common import StatusUpdate
+from services.backend.schemas.hypotheses import (
+    HypothesisCreate,
+    HypothesisResponse,
+    HypothesisUpdate,
+)
 
 router = APIRouter()
 
@@ -54,3 +59,57 @@ async def create_hypothesis(
     created = await repo.create(hyp)
     await session.commit()
     return _to_response(created)
+
+
+@router.put("/{hypothesis_id}")
+async def update_hypothesis(
+    hypothesis_id: str,
+    body: HypothesisUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> HypothesisResponse:
+    repo = SqlHypothesisRepository(session)
+    hyp = await repo.get(hypothesis_id)
+    if hyp is None:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    if body.claim is not None:
+        hyp.claim = body.claim
+    if body.mechanism is not None:
+        hyp.mechanism = body.mechanism
+    updated = await repo.update(hyp)
+    await session.commit()
+    return _to_response(updated)
+
+
+@router.delete("/{hypothesis_id}", status_code=204)
+async def delete_hypothesis(
+    hypothesis_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    repo = SqlHypothesisRepository(session)
+    deleted = await repo.delete(hypothesis_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    await session.commit()
+
+
+@router.patch("/{hypothesis_id}/status")
+async def update_hypothesis_status(
+    hypothesis_id: str,
+    body: StatusUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> HypothesisResponse:
+    repo = SqlHypothesisRepository(session)
+    hyp = await repo.get(hypothesis_id)
+    if hyp is None:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    try:
+        hyp.status = HypothesisStatus(body.status)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status: {body.status}. "
+            f"Valid values: {[s.value for s in HypothesisStatus]}",
+        )
+    updated = await repo.update(hyp)
+    await session.commit()
+    return _to_response(updated)

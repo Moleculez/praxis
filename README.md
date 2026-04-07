@@ -27,6 +27,43 @@ uvicorn services.backend.main:app --reload    # http://localhost:8000
 pnpm run dev                                   # http://localhost:3000
 ```
 
+## Auto Trading
+
+Praxis supports AI-powered paper trading:
+
+1. **Set Alpaca keys** in `.env`:
+   ```
+   ALPACA_API_KEY=your_key
+   ALPACA_SECRET_KEY=your_secret
+   ```
+
+2. **Ingest data** on the Research page (select ticker + source -> Ingest)
+
+3. **Run pipeline** for an experiment (Data -> Features -> Labels -> Model -> Backtest -> Portfolio)
+
+4. **Start auto-trade** on the Live page:
+   - Select strategy (momentum, mean-reversion, stat-arb)
+   - Set minimum confidence threshold (default 0.6)
+   - Click "Start Auto Trade"
+
+5. **Monitor signals** in the signal feed -- the AI generates buy/sell/hold decisions based on council probability
+
+### How It Works
+
+```
+Data Ingest -> Feature Engineering -> Model Training -> Council Evaluation
+                                                              |
+                                                       Signal Generation
+                                                              |
+                                                       Position Sizing (half-Kelly)
+                                                              |
+                                                       Order Submission (Alpaca paper)
+```
+
+- **Paper trading only** -- no live execution without human approval
+- **Position cap**: 2% per position, 8 max concurrent
+- **All trades logged** to `audit/decisions.jsonl`
+
 ## Dev vs Production
 
 | | Dev (default) | Production |
@@ -53,6 +90,7 @@ uvicorn services.backend.main:app --reload
 | Script | Description |
 |--------|-------------|
 | `pnpm run dev` | Start frontend dev server (Turborepo) |
+| `pnpm run auto-trade` | Start API + frontend for paper trading |
 | `pnpm run build` | Build frontend (cached) |
 | `pnpm run test` | Run frontend tests |
 | `pnpm run lint` | Lint frontend |

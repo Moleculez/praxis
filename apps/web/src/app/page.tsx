@@ -12,6 +12,8 @@ import {
   Radio,
   Brain,
   ClipboardList,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useExperiments } from "@/hooks/use-experiments";
@@ -22,6 +24,8 @@ import { cn, experimentStatusColors, formatDate } from "@/lib/utils";
 interface HealthStatus {
   status: string;
   database: string;
+  llm_keys?: boolean;
+  alpaca_keys?: boolean;
 }
 
 function useHealth() {
@@ -123,6 +127,53 @@ function HealthDot({ ok }: { ok: boolean }) {
   );
 }
 
+function QuickStartStep({
+  step,
+  title,
+  children,
+}: {
+  step: number;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-700 dark:text-blue-300">
+        {step}
+      </div>
+      <div>
+        <p className="font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+function ReadinessCheck({
+  label,
+  loading,
+  ok,
+  failColor = "text-yellow-500",
+}: {
+  label: string;
+  loading: boolean;
+  ok: boolean;
+  failColor?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {loading ? (
+        <Skeleton className="h-4 w-4 rounded-full" />
+      ) : ok ? (
+        <CheckCircle size={16} className="text-green-500" />
+      ) : (
+        <XCircle size={16} className={failColor} />
+      )}
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const experiments = useExperiments();
   const hypotheses = useHypotheses();
@@ -137,9 +188,51 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-10 px-4 py-10">
+      <h1 className="text-3xl font-bold">Praxis Dashboard</h1>
+
+      {/* Quick Start wizard — shown only when no experiments exist */}
+      {!experiments.isLoading && (experiments.data ?? []).length === 0 && (
+        <section className="rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-6">
+          <h2 className="text-lg font-semibold mb-4">Quick Start</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <QuickStartStep step={1} title="Set API Keys">
+              Add OPENROUTER_API_KEY or ALPACA keys in .env
+            </QuickStartStep>
+            <QuickStartStep step={2} title="Create Hypothesis">
+              <Link href="/hypotheses">Define a causal trading thesis</Link>
+            </QuickStartStep>
+            <QuickStartStep step={3} title="Run Pipeline">
+              <Link href="/research">Ingest data &rarr; features &rarr; backtest</Link>
+            </QuickStartStep>
+          </div>
+        </section>
+      )}
+
+      {/* System Readiness */}
+      <section className="rounded-lg border p-4">
+        <h2 className="text-sm font-semibold mb-3">System Readiness</h2>
+        <div className="flex flex-wrap gap-6 text-sm">
+          <ReadinessCheck
+            label="API Backend"
+            loading={health.isLoading}
+            ok={health.data?.status === "ok"}
+            failColor="text-red-500"
+          />
+          <ReadinessCheck
+            label="LLM Keys"
+            loading={health.isLoading}
+            ok={!!health.data?.llm_keys}
+          />
+          <ReadinessCheck
+            label="Alpaca Paper Trading"
+            loading={health.isLoading}
+            ok={!!health.data?.alpaca_keys}
+          />
+        </div>
+      </section>
+
       <section>
-        <h1 className="text-3xl font-bold">Praxis Dashboard</h1>
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard
             label="Total Experiments"
             value={experiments.data?.length ?? 0}

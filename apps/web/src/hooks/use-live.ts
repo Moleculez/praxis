@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 
 export interface Position {
@@ -77,5 +78,86 @@ export function useSubmitOrder() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["live"] });
     },
+  });
+}
+
+export interface AutoTradeStatus {
+  running: boolean;
+  signals_count: number;
+  config: Record<string, unknown>;
+}
+
+export interface Signal {
+  id: string;
+  timestamp: string;
+  ticker: string;
+  direction: "buy" | "sell";
+  confidence: number;
+  reason: string;
+}
+
+export function useAutoTradeStatus() {
+  return useQuery({
+    queryKey: ["live", "auto-trade", "status"],
+    queryFn: () => apiFetch<AutoTradeStatus>("/live/auto-trade/status"),
+    refetchInterval: 3000,
+  });
+}
+
+export function useSignals() {
+  return useQuery({
+    queryKey: ["live", "signals"],
+    queryFn: () => apiFetch<Signal[]>("/live/signals"),
+    refetchInterval: 5000,
+  });
+}
+
+export function useStartAutoTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: { strategy?: string; min_confidence?: number }) =>
+      apiFetch("/live/auto-trade/start", {
+        method: "POST",
+        body: JSON.stringify(config),
+      }),
+    onSuccess: () => {
+      toast.success("Auto-trade started");
+      qc.invalidateQueries({ queryKey: ["live"] });
+    },
+    onError: () => toast.error("Failed to start auto-trade"),
+  });
+}
+
+export function useStopAutoTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/live/auto-trade/stop", { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Auto-trade stopped");
+      qc.invalidateQueries({ queryKey: ["live"] });
+    },
+    onError: () => toast.error("Failed to stop"),
+  });
+}
+
+export function useGenerateSignal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      ticker: string;
+      probability: number;
+      thesis?: string;
+      price?: number;
+    }) =>
+      apiFetch("/live/auto-trade/generate-signal", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      toast.success("Signal generated");
+      qc.invalidateQueries({ queryKey: ["live", "signals"] });
+    },
+    onError: () => toast.error("Signal generation failed"),
   });
 }

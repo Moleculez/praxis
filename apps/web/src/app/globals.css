@@ -70,3 +70,33 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* Prose styles for markdown content */
+.prose {
+  line-height: 1.65;
+}
+.prose h1, .prose h2, .prose h3 {
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+.prose p {
+  margin-bottom: 0.75em;
+}
+.prose ul, .prose ol {
+  margin-bottom: 0.75em;
+  padding-left: 1.5em;
+}
+.prose li {
+  margin-bottom: 0.25em;
+}
+.prose blockquote {
+  border-left: 3px solid var(--border-color);
+  padding-left: 1em;
+  color: var(--muted-fg);
+  margin-bottom: 0.75em;
+}
+.prose hr {
+  border-color: var(--border-color);
+  margin: 1.5em 0;
+}

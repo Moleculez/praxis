@@ -1,0 +1,64 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
+
+interface PipelineStatus {
+  data: string;
+  features: string;
+  labels: string;
+  model: string;
+  backtest: string;
+  portfolio: string;
+}
+
+export function usePipelineStatus(experimentId?: string) {
+  return useQuery({
+    queryKey: queryKeys.research.pipeline(experimentId),
+    queryFn: () =>
+      experimentId
+        ? apiFetch<PipelineStatus>(`/research/pipeline/${experimentId}`)
+        : apiFetch<Record<string, PipelineStatus>>("/research/pipeline"),
+    refetchInterval: 5000,
+  });
+}
+
+export function useRunPipelineStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      experimentId,
+      stage,
+    }: {
+      experimentId: string;
+      stage: string;
+    }) =>
+      apiFetch<{ stage: string; status: string; message?: string }>(
+        `/research/pipeline/${experimentId}/run/${stage}`,
+        { method: "POST" },
+      ),
+    onSuccess: (data) => {
+      toast.success(`${data.stage} stage completed`);
+      qc.invalidateQueries({ queryKey: queryKeys.research.pipeline() });
+    },
+    onError: (_, { stage }) => toast.error(`${stage} stage failed`),
+  });
+}
+
+export function useIngestData() {
+  return useMutation({
+    mutationFn: ({ source, ticker }: { source: string; ticker?: string }) =>
+      apiFetch<{ source: string; rows: number }>(
+        `/research/ingest/${source}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ ticker: ticker || "SPY" }),
+        },
+      ),
+    onSuccess: (data) =>
+      toast.success(`Ingested ${data.rows} rows from ${data.source}`),
+    onError: () => toast.error("Data ingest failed"),
+  });
+}

@@ -24,7 +24,7 @@ Pull individual firm characteristics as features for the systematic pipeline. Ea
 For any new "alpha" you discover, check whether it's spanned by OSAP factors. If your new feature is highly correlated with `BMdec` (book-to-market) or `Mom12m` (12-month momentum), you have not discovered anything new — you've rediscovered an existing factor with a worse name.
 
 # Handoff contract
-- **Inputs**: experiment_id + list of OSAP signal acronyms OR "all".
+- **Inputs**: exp_id + list of OSAP signal acronyms OR "all".
 - **Outputs**:
   - `features/osap/<exp_id>.parquet` with one column per signal
   - `features/osap/registry.yaml` entries linking each signal to its OSAP paper, t-stat, and reconstructed sign

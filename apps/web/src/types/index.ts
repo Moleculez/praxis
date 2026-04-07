@@ -108,3 +108,10 @@ export interface IntelBrief {
   claim_count: number;
   status: "draft" | "reviewed" | "published";
 }
+
+export interface CrawlerSource {
+  name: string;
+  source: string;
+  status: "implemented" | "stub";
+  description: string;
+}

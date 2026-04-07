@@ -17,5 +17,6 @@ export const queryKeys = {
   },
   intelligence: {
     briefs: ["intelligence", "briefs"] as const,
+    sources: ["intelligence", "sources"] as const,
   },
 } as const;

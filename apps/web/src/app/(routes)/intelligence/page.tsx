@@ -1,5 +1,7 @@
 "use client";
 
+import { useIntelBriefs, useCrawlerSources } from "@/hooks/use-intelligence";
+
 const PERSONAS = [
   {
     name: "Macro Economist",
@@ -45,22 +47,6 @@ const PERSONAS = [
   },
 ] as const;
 
-type SourceStatus = "implemented" | "stub";
-
-const DATA_SOURCES: {
-  name: string;
-  category: string;
-  status: SourceStatus;
-}[] = [
-  { name: "FRED", category: "Macro", status: "implemented" },
-  { name: "arXiv", category: "Research", status: "implemented" },
-  { name: "EDGAR", category: "Filings", status: "stub" },
-  { name: "News (GDELT)", category: "News", status: "stub" },
-  { name: "Jin10", category: "China", status: "stub" },
-  { name: "Crypto (Binance)", category: "Crypto", status: "stub" },
-  { name: "Market (Yahoo)", category: "Market", status: "implemented" },
-];
-
 function BrierBar({ weight }: { weight: number }) {
   const pct = Math.round(weight * 100);
   return (
@@ -77,12 +63,31 @@ function BrierBar({ weight }: { weight: number }) {
   );
 }
 
-function StatusDot({ status }: { status: SourceStatus }) {
+function StatusDot({ status }: { status: "implemented" | "stub" }) {
   const color = status === "implemented" ? "bg-green-500" : "bg-gray-400";
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
+function InfoCard({ children, variant = "muted" }: { children: React.ReactNode; variant?: "muted" | "error" }) {
+  const styles =
+    variant === "error"
+      ? "border-destructive/50 text-destructive"
+      : "text-muted-foreground";
+  return (
+    <div className={`rounded-lg border bg-card p-6 text-center text-sm ${styles}`}>
+      {children}
+    </div>
+  );
+}
+
 export default function IntelligencePage() {
+  const briefs = useIntelBriefs();
+  const sources = useCrawlerSources();
+
+  const implementedCount =
+    sources.data?.filter((s) => s.status === "implemented").length ?? 0;
+  const totalCount = sources.data?.length ?? 0;
+
   return (
     <div className="space-y-8">
       <div>
@@ -127,27 +132,71 @@ export default function IntelligencePage() {
 
       <section>
         <h2 className="text-lg font-semibold">Recent Briefs</h2>
-        <div className="mt-4 rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
-          No briefs yet. Run the intelligence pipeline to generate council
-          analysis.
+        <div className="mt-4">
+          {briefs.isLoading && <InfoCard>Loading briefs...</InfoCard>}
+          {briefs.isError && (
+            <InfoCard variant="error">
+              Failed to load briefs. Is the backend running?
+            </InfoCard>
+          )}
+          {briefs.isSuccess && briefs.data.length === 0 && (
+            <InfoCard>
+              No briefs yet. Run the intelligence pipeline to generate council
+              analysis.
+            </InfoCard>
+          )}
+          {briefs.isSuccess && briefs.data.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {briefs.data.map((b) => (
+                <div
+                  key={b.id}
+                  className="rounded-lg border bg-card p-4 space-y-1"
+                >
+                  <p className="text-sm font-medium">{b.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.claim_count} claims — {b.status}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold">Data Sources</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {DATA_SOURCES.map((s) => (
-            <div
-              key={s.name}
-              className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
-            >
-              <StatusDot status={s.status} />
-              <div>
-                <p className="text-sm font-medium">{s.name}</p>
-                <p className="text-xs text-muted-foreground">{s.category}</p>
-              </div>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-lg font-semibold">Data Sources</h2>
+          {sources.isSuccess && (
+            <span className="text-sm text-muted-foreground">
+              {implementedCount} of {totalCount} crawlers implemented
+            </span>
+          )}
+        </div>
+        <div className="mt-4">
+          {sources.isLoading && <InfoCard>Loading sources...</InfoCard>}
+          {sources.isError && (
+            <InfoCard variant="error">
+              Failed to load data sources. Is the backend running?
+            </InfoCard>
+          )}
+          {sources.isSuccess && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {sources.data.map((s) => (
+                <div
+                  key={s.name}
+                  className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
+                >
+                  <StatusDot status={s.status} />
+                  <div>
+                    <p className="text-sm font-medium">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </section>
     </div>

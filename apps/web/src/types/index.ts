@@ -107,6 +107,7 @@ export interface IntelBrief {
   created_at: string;
   claim_count: number;
   status: "draft" | "reviewed" | "published";
+  summary?: string;
 }
 
 export interface CrawlerSource {
@@ -114,4 +115,5 @@ export interface CrawlerSource {
   source: string;
   status: "implemented" | "stub";
   description: string;
+  last_updated?: string;
 }

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"pnpm run dev:api\" \"pnpm run dev:web\"",
+    "auto-trade": "concurrently -n api,web -c blue,green \"pnpm run dev:api\" \"pnpm run dev:web\"",
     "dev:api": "uvicorn services.backend.main:app --reload --port 8000",
     "dev:web": "pnpm --filter @praxis/web dev",
     "build": "turbo build",

@@ -131,9 +131,9 @@ export default function HypothesesPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium">{h.claim}</p>
-                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                  <div className="text-sm text-muted-foreground mt-1 line-clamp-3">
                     {h.mechanism}
-                  </p>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Created {formatDate(h.created_at)}
                   </p>

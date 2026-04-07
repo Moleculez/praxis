@@ -1,12 +1,12 @@
 """VERIFIER_V1 frozen schema for multi-LLM verification panel."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     low = "low"
     med = "med"
     high = "high"

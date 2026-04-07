@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   FlaskConical,
   TestTubes,
+  Lightbulb,
   Briefcase,
   Radio,
   Brain,
@@ -26,6 +27,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/research", label: "Research", icon: FlaskConical },
+  { href: "/hypotheses", label: "Hypotheses", icon: Lightbulb },
   { href: "/experiments", label: "Experiments", icon: TestTubes },
   { href: "/portfolios", label: "Portfolios", icon: Briefcase },
   { href: "/live", label: "Live", icon: Radio },

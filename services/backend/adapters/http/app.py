@@ -20,6 +20,7 @@ from services.backend.adapters.http.routes import (
     intelligence,
     live,
     portfolios,
+    research,
 )
 from services.backend.config import get_settings
 from services.backend.domain.errors import DomainError
@@ -60,4 +61,5 @@ def create_app() -> FastAPI:
     app.include_router(portfolios.router, prefix="/portfolios", tags=["portfolios"])
     app.include_router(intelligence.router, prefix="/intelligence", tags=["intelligence"])
     app.include_router(live.router, prefix="/live", tags=["live"])
+    app.include_router(research.router, prefix="/research", tags=["research"])
     return app

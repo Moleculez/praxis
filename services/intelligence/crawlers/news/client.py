@@ -7,7 +7,7 @@ Twitter/X data: only via licensed vendors — never scrape raw.
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class NewsClient:
@@ -17,7 +17,7 @@ class NewsClient:
         self.api_key = api_key
         self.provider = provider
 
-    def fetch(self, query: str, from_date: str | None = None, to_date: str | None = None) -> list[dict[str, Any]]:
+    def fetch(self, query: str, from_date: str | None = None, to_date: str | None = None) -> list[RawItem]:
         """Fetch news articles matching a query.
 
         Args:
@@ -26,7 +26,7 @@ class NewsClient:
             to_date: ISO-format end date filter.
 
         Returns:
-            List of article metadata dicts.
+            List of RawItem with article metadata.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

@@ -6,7 +6,7 @@ Rate limit: 1.0 req/sec default. Respects robots.txt.
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class TranscriptClient:
@@ -15,7 +15,7 @@ class TranscriptClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def fetch(self, ticker: str, year: int | None = None, quarter: int | None = None) -> list[dict[str, Any]]:
+    def fetch(self, ticker: str, year: int | None = None, quarter: int | None = None) -> list[RawItem]:
         """Fetch earnings call transcripts for a ticker.
 
         Args:
@@ -24,7 +24,7 @@ class TranscriptClient:
             quarter: Filter by fiscal quarter (1-4).
 
         Returns:
-            List of transcript metadata dicts.
+            List of RawItem with transcript metadata.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

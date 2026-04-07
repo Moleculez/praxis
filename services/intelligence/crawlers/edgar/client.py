@@ -7,7 +7,7 @@ Respects robots.txt. User-Agent must include company name and contact email per 
 
 from __future__ import annotations
 
-from typing import Any
+from services.intelligence.crawlers.models import RawItem
 
 
 class EdgarClient:
@@ -16,7 +16,7 @@ class EdgarClient:
     def __init__(self, user_agent: str) -> None:
         self.user_agent = user_agent
 
-    def fetch(self, cik: str, filing_type: str = "10-K", count: int = 10) -> list[dict[str, Any]]:
+    def fetch(self, cik: str, filing_type: str = "10-K", count: int = 10) -> list[RawItem]:
         """Fetch filings from EDGAR.
 
         Args:
@@ -25,7 +25,7 @@ class EdgarClient:
             count: Maximum number of filings to return.
 
         Returns:
-            List of filing metadata dicts.
+            List of RawItem with filing metadata.
 
         Raises:
             NotImplementedError: Stub — not yet implemented.

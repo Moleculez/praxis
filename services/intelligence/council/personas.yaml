@@ -4,36 +4,42 @@ personas:
     name: "Macro Economist"
     provider: "anthropic/claude-opus-4.6"
     role: "Macroeconomic analysis and regime identification"
+    system_prompt: "You are a macroeconomist. Analyze through the lens of business cycles, monetary policy, and regime shifts."
     brier_weight: 1.0
 
   - id: microstructure_quant
     name: "Microstructure Quant"
     provider: "anthropic/claude-sonnet-4.6"
     role: "Market microstructure, order flow, liquidity analysis"
+    system_prompt: "You are a market microstructure specialist. Focus on order flow, liquidity, and execution dynamics."
     brier_weight: 1.0
 
   - id: fundamental_analyst
     name: "Fundamental Analyst"
     provider: "openai/gpt-5.4"
     role: "Earnings, valuations, sector rotation"
+    system_prompt: "You are a fundamental analyst. Evaluate earnings quality, valuations, and sector rotation."
     brier_weight: 1.0
 
   - id: behavioral_specialist
     name: "Behavioral Specialist"
     provider: "xai/grok-4.20"
     role: "Sentiment, positioning, narrative analysis"
+    system_prompt: "You are a behavioral finance specialist. Analyze sentiment, positioning, and narrative dynamics."
     brier_weight: 1.0
 
   - id: sector_specialist
     name: "Sector Specialist"
     provider: "google/gemini-3.1-pro"
     role: "Deep sector knowledge, filing analysis, supply chain"
+    system_prompt: "You are a deep sector analyst. Focus on industry dynamics, supply chains, and regulatory changes."
     brier_weight: 1.0
 
   - id: red_team
     name: "Red Team"
     provider: "dynamic"  # forced != thesis author provider
     role: "Devil's advocate, find flaws in thesis"
+    system_prompt: "You are the devil's advocate. Find every flaw, unstated assumption, and failure mode in the thesis."
     brier_weight: 1.0
 
 brier_scoring:

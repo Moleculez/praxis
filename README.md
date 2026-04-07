@@ -7,36 +7,35 @@ Multi-agent quantitative research and paper-trading platform with an integrated 
 - [Python 3.12+](https://www.python.org/)
 - [Node.js 20+](https://nodejs.org/)
 - [pnpm 9+](https://pnpm.io/) (`corepack enable && corepack prepare pnpm@9 --activate`)
-- [Docker](https://www.docker.com/) and Docker Compose
+- [Docker](https://www.docker.com/) (optional — only needed for production infra or Ollama)
 
 ## Quick Start
+
+Zero infrastructure needed for dev — uses SQLite and local filesystem by default.
 
 ```bash
 # 1. Clone and install
 git clone https://github.com/Moleculez/praxis.git
 cd praxis
-cp .env.example .env          # edit with your API keys
+cp .env.example .env          # defaults work out of the box
 pnpm install                  # installs turbo + frontend deps
-
-# 2. Start infrastructure
-pnpm run dev:infra            # Postgres, TimescaleDB, Redis, MinIO, MLflow
-
-# 3. Install Python backend
 pip install -e "services/backend[dev]"
 
-# 4. Run database migrations
-pnpm run migrate              # creates experiments + hypotheses tables
-
-# 5. Start development
-pnpm run dev                  # starts Next.js frontend via Turborepo
-uvicorn services.backend.main:app --reload  # starts FastAPI backend
+# 2. Start development (SQLite auto-creates tables on first run)
+uvicorn services.backend.main:app --reload  # backend on :8000
+pnpm run dev                                # frontend on :3000
 ```
 
-Or run everything via Docker:
+### Production setup (Docker)
+
+For the full stack with Postgres, TimescaleDB, Redis, MinIO, and MLflow:
 
 ```bash
-cp .env.example .env
-docker compose up             # starts infra + backend on port 8000
+# Uncomment the Postgres DATABASE_URL in .env, then:
+docker compose --profile prod up -d    # starts all infra
+pip install -e "services/backend[prod,dev]"
+pnpm run migrate                       # Alembic migrations
+uvicorn services.backend.main:app --reload
 ```
 
 ## Scripts
@@ -129,9 +128,18 @@ The FastAPI backend serves on port 8000:
 
 All mutations are logged to `audit/decisions.jsonl` via audit middleware.
 
-## Infrastructure Services
+## Infrastructure
 
-Started via `pnpm run dev:infra` or `docker compose up`:
+### Dev (default — no Docker needed)
+
+| Component | Tech | Notes |
+|-----------|------|-------|
+| Database | SQLite | Auto-created at `data/praxis.db` |
+| Artifacts | Local filesystem | `data/artifacts/` |
+| Background jobs | Inline | No Redis needed |
+| LLM | Ollama or API keys | Optional |
+
+### Production (`--profile prod`)
 
 | Service | Port | Purpose |
 |---------|------|---------|
@@ -140,8 +148,7 @@ Started via `pnpm run dev:infra` or `docker compose up`:
 | Redis | 6379 | Cache + Arq job queue |
 | MinIO | 9000 / 9001 (console) | S3-compatible artifact storage |
 | MLflow | 5000 | Experiment tracking |
-| Backend | 8000 | FastAPI application (Docker only) |
-| Ollama | 11434 | Local LLM inference (optional, `local-llm` profile) |
+| Ollama | 11434 | Local LLM (optional, `--profile local-llm`) |
 
 ## Local LLM (Ollama)
 

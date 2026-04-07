@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from services.backend.adapters.db.models import Base
 from services.backend.adapters.http.middleware import domain_error_handler
 from services.backend.adapters.http.routes import experiments, health, hypotheses
 from services.backend.config import get_settings
@@ -18,11 +20,17 @@ from services.backend.domain.errors import DomainError
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
-    app.state.engine = create_async_engine(
-        settings.database_url, echo=settings.debug
-    )
+    engine = create_async_engine(settings.database_url, echo=settings.debug)
+    app.state.engine = engine
+
+    # Auto-create tables for SQLite dev mode (no Alembic needed)
+    if settings.is_sqlite:
+        Path("data").mkdir(exist_ok=True)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
     yield
-    await app.state.engine.dispose()
+    await engine.dispose()
 
 
 def create_app() -> FastAPI:

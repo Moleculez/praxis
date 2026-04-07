@@ -12,29 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: praxis
-          POSTGRES_PASSWORD: praxis
-          POSTGRES_DB: praxis
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -51,12 +28,9 @@ jobs:
             "fastapi>=0.110.0" \
             "uvicorn[standard]>=0.27.0" \
             "sqlalchemy[asyncio]>=2.0.0" \
-            "asyncpg>=0.29.0" \
-            "polars>=1.0.0" \
+            "aiosqlite>=0.20.0" \
             "pydantic>=2.0.0" \
             "pydantic-settings>=2.0.0" \
-            "arq>=0.26.0" \
-            "redis>=5.0.0" \
             "httpx>=0.27.0" \
             "alembic>=1.13.0" \
             "pytest>=8.0.0" \
@@ -69,9 +43,6 @@ jobs:
         run: ruff check services/ tests/
 
       - name: Run tests
-        env:
-          DATABASE_URL: postgresql+asyncpg://praxis:praxis@localhost:5432/praxis
-          REDIS_URL: redis://localhost:6379/0
         run: pytest tests/ -q --tb=short
 
   frontend:

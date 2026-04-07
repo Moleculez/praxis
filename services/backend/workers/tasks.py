@@ -1,10 +1,11 @@
-"""Arq background task definitions."""
+"""Background task definitions.
+
+Uses Arq (Redis) when available, otherwise tasks run inline.
+"""
 
 from __future__ import annotations
 
 from typing import Any
-
-from arq.connections import RedisSettings
 
 from services.backend.config import get_settings
 
@@ -21,8 +22,16 @@ async def run_backtest(ctx: dict[str, Any], experiment_id: str) -> str:
     return f"backtest for {experiment_id} completed"
 
 
-class WorkerSettings:
-    """Arq worker configuration."""
+def get_worker_settings() -> dict[str, Any] | None:
+    """Return Arq WorkerSettings if Redis is configured, else None."""
+    settings = get_settings()
+    if not settings.has_redis:
+        return None
 
-    functions = [run_experiment, run_backtest]
-    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
+    from arq.connections import RedisSettings
+
+    class WorkerSettings:
+        functions = [run_experiment, run_backtest]
+        redis_settings = RedisSettings.from_dsn(settings.redis_url)
+
+    return WorkerSettings  # type: ignore[return-value]

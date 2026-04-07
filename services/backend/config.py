@@ -8,21 +8,21 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database
-    database_url: str = "postgresql+asyncpg://praxis:praxis@localhost:5432/praxis"
-    timescale_url: str = "postgresql+asyncpg://praxis:praxis@localhost:5433/praxis_ts"
+    # Database — SQLite by default for dev, Postgres for production
+    database_url: str = "sqlite+aiosqlite:///data/praxis.db"
+    timescale_url: str = ""  # Only needed in production
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    # Redis — optional, background tasks degrade gracefully without it
+    redis_url: str = ""
 
-    # MinIO
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
+    # MinIO — optional, falls back to local filesystem (data/artifacts/)
+    minio_endpoint: str = ""
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
     minio_bucket: str = "praxis-artifacts"
 
-    # MLflow
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    # MLflow — optional, experiment tracking disabled when empty
+    mlflow_tracking_uri: str = ""
 
     # LLM Gateway
     openrouter_api_key: str = ""
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # Local LLM (Ollama)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
-    use_local_llm: bool = False  # Set True to route dev calls through Ollama
+    use_local_llm: bool = False
 
     # Paper Trading
     alpaca_api_key: str = ""
@@ -48,6 +48,22 @@ class Settings(BaseSettings):
     debug: bool = False
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def has_redis(self) -> bool:
+        return bool(self.redis_url)
+
+    @property
+    def has_minio(self) -> bool:
+        return bool(self.minio_endpoint)
+
+    @property
+    def has_mlflow(self) -> bool:
+        return bool(self.mlflow_tracking_uri)
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
 
 
 @lru_cache

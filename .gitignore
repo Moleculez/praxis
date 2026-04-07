@@ -23,6 +23,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .eslintcache
+next-env.d.ts
 
 # Turborepo
 .turbo/

@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def deduplicate_claims(claims: list[dict[str, Any]], threshold: float = 0.92) -> list[dict[str, Any]]:
+def deduplicate_claims(
+    claims: list[dict[str, Any]], threshold: float = 0.92,
+) -> list[dict[str, Any]]:
     """Remove near-duplicate claims using cosine similarity on sentence embeddings.
 
     Uses sentence-transformers/all-MiniLM-L6-v2 for embedding and flags pairs

@@ -19,4 +19,8 @@ export const queryKeys = {
     briefs: ["intelligence", "briefs"] as const,
     sources: ["intelligence", "sources"] as const,
   },
+  research: {
+    pipeline: (experimentId?: string) =>
+      ["research", "pipeline", experimentId] as const,
+  },
 } as const;

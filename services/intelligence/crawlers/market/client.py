@@ -3,7 +3,7 @@
 Sources:
 - Yahoo Finance chart API (public, no auth)
 - Yahoo Finance RSS news feed (public)
-Rate limit: 1.0 req/sec
+Rate limit: 0.3s between requests
 Auth: None required
 """
 
@@ -36,8 +36,8 @@ class MarketClient:
 
     def _rate_limit(self) -> None:
         elapsed = time.monotonic() - self._last_request
-        if elapsed < 1.0:
-            time.sleep(1.0 - elapsed)
+        if elapsed < 0.3:
+            time.sleep(0.3 - elapsed)
         self._last_request = time.monotonic()
 
     def fetch_ohlcv(

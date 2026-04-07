@@ -15,7 +15,9 @@ class TranscriptClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def fetch(self, ticker: str, year: int | None = None, quarter: int | None = None) -> list[RawItem]:
+    def fetch(
+        self, ticker: str, year: int | None = None, quarter: int | None = None,
+    ) -> list[RawItem]:
         """Fetch earnings call transcripts for a ticker.
 
         Args:

@@ -16,7 +16,9 @@ class FredClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def fetch(self, series_id: str, start_date: str | None = None, end_date: str | None = None) -> list[RawItem]:
+    def fetch(
+        self, series_id: str, start_date: str | None = None, end_date: str | None = None,
+    ) -> list[RawItem]:
         """Fetch a FRED time series.
 
         Args:

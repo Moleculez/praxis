@@ -17,7 +17,9 @@ class NewsClient:
         self.api_key = api_key
         self.provider = provider
 
-    def fetch(self, query: str, from_date: str | None = None, to_date: str | None = None) -> list[RawItem]:
+    def fetch(
+        self, query: str, from_date: str | None = None, to_date: str | None = None,
+    ) -> list[RawItem]:
         """Fetch news articles matching a query.
 
         Args:

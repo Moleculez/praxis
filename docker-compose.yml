@@ -66,6 +66,17 @@ services:
     networks:
       - praxis-net
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - praxis-net
+    profiles:
+      - local-llm
+
   backend:
     build:
       context: .
@@ -96,6 +107,7 @@ volumes:
   timescale-data:
   postgres-data:
   minio-data:
+  ollama-data:
 
 networks:
   praxis-net:

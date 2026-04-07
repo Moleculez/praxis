@@ -1,5 +1,10 @@
 # PhD Council configuration
 max_cost_per_brief_usd: 5.00
-gateway: "openrouter"  # or "cline"
+gateway: "openrouter"  # openrouter | cline | ollama
 synthesis_model: "anthropic/claude-opus-4.6"
 red_team_rule: "must use different provider than thesis author"
+
+# Local dev mode — set gateway: "ollama" and configure below
+ollama:
+  base_url: "http://localhost:11434"
+  model: "llama3.1"  # pulled via: docker compose --profile local-llm up -d && docker exec ollama ollama pull llama3.1

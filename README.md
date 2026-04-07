@@ -141,6 +141,30 @@ Started via `pnpm run dev:infra` or `docker compose up`:
 | MinIO | 9000 / 9001 (console) | S3-compatible artifact storage |
 | MLflow | 5000 | Experiment tracking |
 | Backend | 8000 | FastAPI application (Docker only) |
+| Ollama | 11434 | Local LLM inference (optional, `local-llm` profile) |
+
+## Local LLM (Ollama)
+
+For development without API keys, run a local LLM via Ollama:
+
+```bash
+# Start Ollama alongside other services
+docker compose --profile local-llm up -d
+
+# Pull a model (first time only)
+docker exec praxis-ollama-1 ollama pull llama3.1
+
+# Enable local mode in .env
+echo "USE_LOCAL_LLM=true" >> .env
+```
+
+The LLM gateway automatically routes through Ollama's OpenAI-compatible endpoint (`localhost:11434/v1`) when `USE_LOCAL_LLM=true`. The council config also supports `gateway: "ollama"` for local persona routing.
+
+Recommended models for dev:
+- `llama3.1` -- general purpose (8B, fast)
+- `llama3.1:70b` -- higher quality (needs 40GB+ VRAM)
+- `mistral` -- lighter alternative
+- `codellama` -- code-focused tasks
 
 ## Environment Variables
 
@@ -148,6 +172,7 @@ Copy `.env.example` to `.env` and fill in API keys:
 
 - **Database/Redis/MinIO** -- defaults work with Docker Compose
 - **LLM Gateway** -- `OPENROUTER_API_KEY` (recommended single gateway) or individual provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `XAI_API_KEY`)
+- **Local LLM** -- set `USE_LOCAL_LLM=true` and `OLLAMA_MODEL=llama3.1` to skip API keys entirely
 - **Paper Trading** -- `ALPACA_API_KEY` + `ALPACA_SECRET_KEY` for paper trading via Alpaca
 
 ## Claude Code Agents

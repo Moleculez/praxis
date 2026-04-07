@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     google_ai_api_key: str = ""
     xai_api_key: str = ""
 
+    # Local LLM (Ollama)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1"
+    use_local_llm: bool = False  # Set True to route dev calls through Ollama
+
     # Paper Trading
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""

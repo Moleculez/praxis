@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import Link from "next/link";
 import { useHypothesis } from "@/hooks/use-hypotheses";
+import { useExperiments } from "@/hooks/use-experiments";
 import { formatDate } from "@/lib/utils";
 import type { Hypothesis } from "@/types";
 
@@ -20,6 +21,11 @@ export default function HypothesisDetailPage({
 }) {
   const { id } = use(params);
   const { data: hypothesis, isLoading, error } = useHypothesis(id);
+  const { data: experiments } = useExperiments();
+  const linkedExperiments = useMemo(
+    () => (experiments ?? []).filter((e) => e.manifest?.hypothesis_id === id),
+    [experiments, id],
+  );
 
   if (isLoading) {
     return (
@@ -89,13 +95,15 @@ export default function HypothesisDetailPage({
       <div className="rounded-lg border p-4">
         <h2 className="text-sm font-medium text-muted-foreground mb-3">Research Pipeline</h2>
         <p className="text-sm text-muted-foreground">
-          To test this hypothesis, create an{" "}
-          <Link href="/experiments" className="underline hover:text-foreground">
-            experiment
-          </Link>{" "}
-          and run it through the validation pipeline (CPCV → DSR → PBO).
+          To test this hypothesis, create an experiment and run it through the validation pipeline (CPCV → DSR → PBO).
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex items-center gap-3">
+          <Link
+            href={`/experiments?hypothesis_id=${id}&claim=${encodeURIComponent(hypothesis.claim)}`}
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700"
+          >
+            Create Experiment
+          </Link>
           <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
             DSR ≥ 0.95 required
           </span>
@@ -107,6 +115,22 @@ export default function HypothesisDetailPage({
           </span>
         </div>
       </div>
+
+      {linkedExperiments.length > 0 && (
+        <div className="rounded-lg border p-4">
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Linked Experiments</h2>
+          <ul className="space-y-2">
+            {linkedExperiments.map((e) => (
+              <li key={e.id} className="flex items-center justify-between text-sm">
+                <Link href={`/experiments/${e.id}`} className="hover:underline font-medium">
+                  {e.name}
+                </Link>
+                <span className="text-xs text-muted-foreground">{e.status}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  python:
+    name: Python Lint & Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: praxis
+          POSTGRES_PASSWORD: praxis
+          POSTGRES_DB: praxis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "services/backend[dev]" || pip install -e "services/backend"
+
+      - name: Lint with ruff
+        run: ruff check services/ tests/
+
+      - name: Type check with mypy
+        run: mypy --strict services/backend/
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://praxis:praxis@localhost:5432/praxis
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/ -q --tb=short
+
+  frontend:
+    name: Frontend Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        working-directory: apps/web
+        run: pnpm typecheck
+
+      - name: Lint
+        working-directory: apps/web
+        run: pnpm lint
+
+      - name: Run tests
+        working-directory: apps/web
+        run: pnpm test

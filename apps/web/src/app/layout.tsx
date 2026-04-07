@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -29,7 +29,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <Nav />
-          <main className="md:ml-56 min-h-screen p-6 md:p-8 overflow-auto">
+          <main className="md:ml-56 min-h-screen max-w-screen-2xl p-6 md:p-8 overflow-auto">
             {children}
           </main>
         </Providers>

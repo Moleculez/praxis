@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Download, RotateCcw, Info, Shield, Globe, User } from "lucide-react";
+import { toast } from "sonner";
 import {
   useAppSettings,
+  useSystemInfo,
   useTradingLimits,
   useUpdateTradingLimits,
   useTestLLM,
@@ -92,14 +94,144 @@ function ConnectionStatusSection() {
   );
 }
 
+function SystemInfoSection() {
+  const { data: info, isLoading } = useSystemInfo();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Info className="h-5 w-5" /> System Info
+        </h2>
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  const items = [
+    { label: "Python", value: info?.python_version ?? "Unknown" },
+    { label: "Platform", value: info?.platform ?? "Unknown" },
+    { label: "Database", value: info?.database ?? "Unknown" },
+    { label: "Debug Mode", value: info?.debug ? "Enabled" : "Disabled" },
+  ];
+
+  return (
+    <div className="rounded-lg border p-6">
+      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Info className="h-5 w-5" /> System Info
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-lg border px-4 py-3">
+            <p className="text-xs text-muted-foreground">{item.label}</p>
+            <p className="text-sm font-medium mt-0.5">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProxyConfigSection() {
+  const { data: settings, isLoading } = useAppSettings();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Globe className="h-5 w-5" /> Proxy Configuration
+        </h2>
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border p-6">
+      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Globe className="h-5 w-5" /> Proxy Configuration
+      </h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border px-4 py-3">
+          <p className="text-xs text-muted-foreground">HTTP Proxy</p>
+          <p className="text-sm font-medium mt-0.5">
+            {settings?.proxy?.http_proxy ? "Configured" : "Not configured"}
+          </p>
+        </div>
+        <div className="rounded-lg border px-4 py-3">
+          <p className="text-xs text-muted-foreground">No-Proxy Hosts</p>
+          <p className="text-sm font-medium mt-0.5">
+            {settings?.proxy?.no_proxy || "None"}
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Proxy is configured via{" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
+          HTTP_PROXY
+        </code>{" "}
+        and{" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
+          NO_PROXY
+        </code>{" "}
+        environment variables in your{" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
+          .env
+        </code>{" "}
+        file.
+      </p>
+    </div>
+  );
+}
+
+const DEFAULT_TRADING_LIMITS = {
+  max_position_pct: 2,
+  max_daily_loss: 5000,
+  max_positions: 8,
+  auto_execute_threshold: 1,
+};
+
+function ExportConfigButton() {
+  const appSettings = useAppSettings();
+
+  function handleExport() {
+    const data = appSettings.data;
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "praxis-config.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Config exported");
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleExport}
+      disabled={appSettings.isLoading || !appSettings.data}
+      className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+    >
+      <Download className="h-4 w-4" />
+      Export Config
+    </button>
+  );
+}
+
 function TradingLimitsSection() {
   const { data: limits, isLoading } = useTradingLimits();
   const updateLimits = useUpdateTradingLimits();
 
-  const [maxPositionPct, setMaxPositionPct] = useState(2);
-  const [maxDailyLoss, setMaxDailyLoss] = useState(5000);
-  const [maxPositions, setMaxPositions] = useState(8);
-  const [autoExecuteThreshold, setAutoExecuteThreshold] = useState(1);
+  const [maxPositionPct, setMaxPositionPct] = useState(DEFAULT_TRADING_LIMITS.max_position_pct);
+  const [maxDailyLoss, setMaxDailyLoss] = useState(DEFAULT_TRADING_LIMITS.max_daily_loss);
+  const [maxPositions, setMaxPositions] = useState(DEFAULT_TRADING_LIMITS.max_positions);
+  const [autoExecuteThreshold, setAutoExecuteThreshold] = useState(
+    DEFAULT_TRADING_LIMITS.auto_execute_threshold,
+  );
 
   useEffect(() => {
     if (limits) {
@@ -119,6 +251,14 @@ function TradingLimitsSection() {
     });
   }
 
+  function handleReset() {
+    setMaxPositionPct(DEFAULT_TRADING_LIMITS.max_position_pct);
+    setMaxDailyLoss(DEFAULT_TRADING_LIMITS.max_daily_loss);
+    setMaxPositions(DEFAULT_TRADING_LIMITS.max_positions);
+    setAutoExecuteThreshold(DEFAULT_TRADING_LIMITS.auto_execute_threshold);
+    updateLimits.mutate(DEFAULT_TRADING_LIMITS);
+  }
+
   if (isLoading) {
     return (
       <div className="rounded-lg border p-6">
@@ -130,7 +270,9 @@ function TradingLimitsSection() {
 
   return (
     <div className="rounded-lg border p-6">
-      <h2 className="text-lg font-semibold mb-4">Trading Limits</h2>
+      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Shield className="h-5 w-5" /> Trading Limits
+      </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium mb-1">
@@ -185,7 +327,7 @@ function TradingLimitsSection() {
           />
         </div>
       </div>
-      <div className="mt-4">
+      <div className="mt-4 flex gap-3">
         <button
           type="button"
           onClick={handleSave}
@@ -193,6 +335,15 @@ function TradingLimitsSection() {
           className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {updateLimits.isPending ? "Saving..." : "Save Limits"}
+        </button>
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={updateLimits.isPending}
+          className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Reset to Defaults
         </button>
       </div>
     </div>
@@ -231,12 +382,32 @@ OLLAMA_HOST=http://localhost:11434`}
   );
 }
 
+function UserProfileSection() {
+  return (
+    <div className="rounded-lg border p-6">
+      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <User className="h-5 w-5" /> User Profile
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        Authentication is not configured. User management will be available once
+        an auth provider is set up.
+      </p>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <ExportConfigButton />
+      </div>
+      <SystemInfoSection />
       <ConnectionStatusSection />
+      <ProxyConfigSection />
       <TradingLimitsSection />
+      <UserProfileSection />
       <HowToConfigureSection />
     </div>
   );

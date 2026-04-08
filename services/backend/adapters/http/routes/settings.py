@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import platform
+import sys
+
 from fastapi import APIRouter
 
 from services.backend.config import get_settings
 
 router = APIRouter()
+
+
+@router.get("/system")
+async def get_system_info() -> dict:
+    """Return basic system information for the info card."""
+    settings = get_settings()
+    return {
+        "python_version": sys.version.split()[0],
+        "platform": platform.system(),
+        "database": "sqlite" if settings.is_sqlite else "postgres",
+        "debug": settings.debug,
+    }
 
 
 @router.get("/")
@@ -33,6 +48,10 @@ async def get_app_settings() -> dict:
             if "///" in settings.database_url
             else "postgres"
         ),
+        "proxy": {
+            "http_proxy": bool(settings.http_proxy),
+            "no_proxy": settings.no_proxy,
+        },
     }
 
 

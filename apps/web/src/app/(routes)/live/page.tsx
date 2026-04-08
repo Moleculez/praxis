@@ -7,7 +7,6 @@ import {
   useOrders,
   useTradingSummary,
   useSubmitOrder,
-  useSymbolSearchEnriched,
   useAutoTradeStatus,
   useSignals,
   useStartAutoTrade,
@@ -15,6 +14,7 @@ import {
   useGenerateSignal,
   useConnectionStatus,
 } from "@/hooks/use-live";
+import { TickerAutocomplete } from "@/components/ticker-autocomplete";
 
 function formatCurrency(value: number): string {
   const sign = value < 0 ? "-" : "";
@@ -242,13 +242,11 @@ function AutoTradePanel() {
               <label htmlFor="gen-ticker" className="text-xs font-medium text-muted-foreground">
                 Ticker
               </label>
-              <input
+              <TickerAutocomplete
                 id="gen-ticker"
-                type="text"
                 value={genTicker}
-                onChange={(e) => setGenTicker(e.target.value)}
-                placeholder="AAPL"
-                className="h-9 rounded-md border bg-background px-3 text-sm uppercase"
+                onChange={setGenTicker}
+                className="h-9 w-full"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -328,8 +326,6 @@ export default function LivePage() {
 
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [ticker, setTicker] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const { data: suggestions } = useSymbolSearchEnriched(ticker);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -431,51 +427,12 @@ export default function LivePage() {
                 <label htmlFor="ticker" className="text-xs font-medium text-muted-foreground">
                   Ticker
                 </label>
-                <div className="relative">
-                  <input
-                    id="ticker"
-                    type="text"
-                    value={ticker}
-                    onChange={(e) => {
-                      setTicker(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => {
-                      if (ticker) setShowSuggestions(true);
-                    }}
-                    onBlur={() => {
-                      setTimeout(() => setShowSuggestions(false), 150);
-                    }}
-                    placeholder="AAPL"
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm uppercase"
-                    autoComplete="off"
-                  />
-                  {showSuggestions && suggestions && suggestions.length > 0 && (
-                    <ul className="absolute top-full left-0 z-10 mt-1 w-80 rounded-md border bg-background shadow-lg max-h-64 overflow-y-auto">
-                      {suggestions.map((s) => (
-                        <li
-                          key={s.symbol}
-                          onMouseDown={() => {
-                            setTicker(s.symbol);
-                            setShowSuggestions(false);
-                          }}
-                          className="px-3 py-2 hover:bg-muted cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-medium text-sm">{s.symbol}</span>
-                              <span className="ml-2 text-xs text-muted-foreground">{s.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{s.sector}</span>
-                              <span className="text-xs text-muted-foreground">{s.market_cap}</span>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <TickerAutocomplete
+                  id="ticker"
+                  value={ticker}
+                  onChange={setTicker}
+                  className="h-9 w-full"
+                />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-muted-foreground">Side</label>

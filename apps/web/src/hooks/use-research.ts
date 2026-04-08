@@ -35,12 +35,16 @@ export function useRunPipelineStage() {
       experimentId: string;
       stage: string;
     }) =>
-      apiFetch<{ stage: string; status: string; message?: string }>(
+      apiFetch<{ stage: string; status: string; message?: string; error?: string }>(
         `/research/pipeline/${experimentId}/run/${stage}`,
-        { method: "POST" },
+        { method: "POST", timeout: 60_000 },
       ),
     onSuccess: (data) => {
-      toast.success(`${data.stage} stage completed`);
+      if (data.status === "failed") {
+        toast.error(`${data.stage} stage failed: ${data.error ?? "unknown error"}`);
+      } else {
+        toast.success(`${data.stage} stage ${data.status}`);
+      }
       qc.invalidateQueries({ queryKey: queryKeys.research.pipeline() });
     },
     onError: (_, { stage }) => toast.error(`${stage} stage failed`),

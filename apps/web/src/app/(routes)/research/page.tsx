@@ -9,7 +9,7 @@ import {
   useRunPipelineStage,
   useIngestData,
 } from "@/hooks/use-research";
-import { useSymbolSearchEnriched } from "@/hooks/use-live";
+import { TickerAutocomplete } from "@/components/ticker-autocomplete";
 
 const pipelineStages = [
   { key: "data", name: "Data", description: "Ingest OHLCV, FRED, EDGAR" },
@@ -78,9 +78,6 @@ export default function ResearchPage() {
   const runStage = useRunPipelineStage();
 
   const [ticker, setTicker] = useState("SPY");
-  const [tickerQuery, setTickerQuery] = useState("");
-  const [showTickerDropdown, setShowTickerDropdown] = useState(false);
-  const { data: tickerSuggestions } = useSymbolSearchEnriched(tickerQuery);
   const [source, setSource] = useState<string>(ingestSources[0].key);
   const ingest = useIngestData();
 
@@ -117,54 +114,14 @@ export default function ResearchPage() {
               ))}
             </select>
           </div>
-          <div className="relative">
+          <div>
             <label className="block text-sm font-medium mb-1">Ticker</label>
-            <input
-              type="text"
+            <TickerAutocomplete
               value={ticker}
-              onChange={(e) => {
-                const val = e.target.value.toUpperCase();
-                setTicker(val);
-                setTickerQuery(val);
-                setShowTickerDropdown(true);
-              }}
-              onFocus={() => {
-                if (ticker) {
-                  setTickerQuery(ticker);
-                  setShowTickerDropdown(true);
-                }
-              }}
-              onBlur={() => setTimeout(() => setShowTickerDropdown(false), 200)}
-              className="rounded-md border bg-background px-3 py-1.5 text-sm w-32"
+              onChange={setTicker}
               placeholder="SPY"
-              autoComplete="off"
+              className="py-1.5 w-32"
             />
-            {showTickerDropdown && tickerSuggestions && tickerSuggestions.length > 0 && (
-              <ul className="absolute top-full left-0 z-20 mt-1 w-80 rounded-md border bg-background shadow-lg max-h-64 overflow-y-auto">
-                {tickerSuggestions.map((s) => (
-                  <li
-                    key={s.symbol}
-                    onMouseDown={() => {
-                      setTicker(s.symbol);
-                      setTickerQuery("");
-                      setShowTickerDropdown(false);
-                    }}
-                    className="px-3 py-2 hover:bg-muted cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-medium text-sm">{s.symbol}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{s.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{s.sector}</span>
-                        <span className="text-xs text-muted-foreground">{s.market_cap}</span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
           <button
             onClick={() => ingest.mutate({ source, ticker })}

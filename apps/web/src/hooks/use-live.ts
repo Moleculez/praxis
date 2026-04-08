@@ -67,6 +67,8 @@ export interface SymbolInfo {
   name: string;
   sector: string;
   market_cap: string;
+  price?: number;
+  change_pct?: number;
 }
 
 export function useSymbolSearchEnriched(query: string) {
@@ -74,7 +76,7 @@ export function useSymbolSearchEnriched(query: string) {
     queryKey: ["live", "symbols", "enriched", query],
     queryFn: () => apiFetch<SymbolInfo[]>(`/live/symbols/search?q=${encodeURIComponent(query)}`),
     enabled: query.length > 0,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 }
 

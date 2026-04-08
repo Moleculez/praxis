@@ -8,6 +8,7 @@ import {
   useGenerateTradeIdea,
 } from "@/hooks/use-intelligence";
 import { Markdown } from "@/components/markdown";
+import { TickerAutocomplete } from "@/components/ticker-autocomplete";
 import type { CouncilSynthesis } from "@/types";
 
 const PERSONAS = [
@@ -173,12 +174,10 @@ function ThesisEvaluator() {
           <label className="block text-sm font-medium text-muted-foreground mb-1">
             Ticker (optional)
           </label>
-          <input
-            type="text"
+          <TickerAutocomplete
             value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            placeholder="AAPL"
-            className="rounded-md border bg-background px-3 py-2 text-sm w-32"
+            onChange={setTicker}
+            className="py-2 w-32"
           />
         </div>
         <div>

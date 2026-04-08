@@ -17,14 +17,13 @@ router = APIRouter()
 # hexagonal adapter layer.
 _pipeline_status: dict[str, dict[str, Any]] = {}
 
+_DEFAULT_STAGES = ["data", "features", "labels", "model", "backtest", "portfolio"]
+
 VALID_STAGES = frozenset({
-    "ingest",
-    "features",
-    "labels",
+    *_DEFAULT_STAGES,
+    "ingest",     # alias for data
+    "training",   # alias for model
     "validation",
-    "training",
-    "portfolio",
-    "backtest",
 })
 
 
@@ -40,7 +39,11 @@ async def pipeline_status() -> dict[str, Any]:
 
 @router.get("/pipeline/{experiment_id}")
 async def experiment_pipeline_status(experiment_id: str) -> dict[str, Any]:
-    """Return pipeline status for a specific experiment."""
+    """Return pipeline status for a specific experiment.
+
+    Returns a flat dict mapping stage names to their status strings,
+    e.g. ``{"data": "completed", "features": "not_started", ...}``.
+    """
     if experiment_id not in _pipeline_status:
         raise HTTPException(status_code=404, detail="Experiment not found in pipeline")
     return _pipeline_status[experiment_id]
@@ -60,18 +63,16 @@ async def run_pipeline_stage(experiment_id: str, stage: str) -> dict[str, Any]:
         )
 
     if experiment_id not in _pipeline_status:
-        _pipeline_status[experiment_id] = {"stages": {}, "current_stage": None}
+        _pipeline_status[experiment_id] = {s: "not_started" for s in _DEFAULT_STAGES}
 
-    _pipeline_status[experiment_id]["current_stage"] = stage
-    _pipeline_status[experiment_id]["stages"][stage] = "running"
+    _pipeline_status[experiment_id][stage] = "running"
 
     stage_start = _time.monotonic()
     try:
         detail = _execute_stage(stage)
-        # Strip internal keys before returning to the client.
         detail.pop("_df", None)
         duration = round(_time.monotonic() - stage_start, 2)
-        _pipeline_status[experiment_id]["stages"][stage] = "completed"
+        _pipeline_status[experiment_id][stage] = "completed"
         return {
             "experiment_id": experiment_id,
             "stage": stage,
@@ -81,7 +82,7 @@ async def run_pipeline_stage(experiment_id: str, stage: str) -> dict[str, Any]:
         }
     except Exception as exc:
         duration = round(_time.monotonic() - stage_start, 2)
-        _pipeline_status[experiment_id]["stages"][stage] = "failed"
+        _pipeline_status[experiment_id][stage] = "failed"
         return {
             "experiment_id": experiment_id,
             "stage": stage,
@@ -176,7 +177,7 @@ async def ingest_data(source: str) -> dict[str, Any]:
 @router.post("/pipeline/{experiment_id}/run-all")
 async def run_all_stages(experiment_id: str) -> dict[str, Any]:
     """Run the complete research pipeline sequentially."""
-    stages = ["data", "features", "labels", "model", "backtest", "portfolio"]
+    stages = _DEFAULT_STAGES
     if experiment_id not in _pipeline_status:
         _pipeline_status[experiment_id] = {s: "not_started" for s in stages}
 

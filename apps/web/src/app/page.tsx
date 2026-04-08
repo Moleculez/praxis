@@ -3,23 +3,26 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
-  FlaskConical,
-  Lightbulb,
   Activity,
   BarChart3,
-  Plus,
-  Eye,
-  Radio,
   Brain,
-  ClipboardList,
-  CheckCircle,
-  XCircle,
+  FlaskConical,
+  Radio,
+  Settings,
+  Shield,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { useExperiments } from "@/hooks/use-experiments";
-import { useHypotheses } from "@/hooks/use-hypotheses";
+import {
+  useTradingSummary,
+  useAutoTradeStatus,
+  useSignals,
+  useConnectionStatus,
+} from "@/hooks/use-live";
 import { apiFetch } from "@/lib/api";
-import { cn, experimentStatusColors, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+
+/* ------------------------------------------------------------------ */
+/*  Health hook                                                        */
+/* ------------------------------------------------------------------ */
 
 interface HealthStatus {
   status: string;
@@ -37,344 +40,324 @@ function useHealth() {
   });
 }
 
-const hypothesisStatusColors: Record<string, string> = {
-  proposed: "bg-yellow-100 text-yellow-800",
-  testing: "bg-blue-100 text-blue-800",
-  confirmed: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-};
-
-const statusColors: Record<string, string> = {
-  ...experimentStatusColors,
-  ...hypothesisStatusColors,
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-        statusColors[status] ?? "bg-gray-100 text-gray-800",
-      )}
-    >
-      {status}
-    </span>
-  );
-}
+/* ------------------------------------------------------------------ */
+/*  Shared components                                                  */
+/* ------------------------------------------------------------------ */
 
 function Skeleton({ className }: { className?: string }) {
   return (
-    <div className={cn("animate-pulse rounded bg-muted", className)} aria-hidden />
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  loading,
-  icon: Icon,
-  iconColor,
-}: {
-  label: string;
-  value: string | number;
-  loading: boolean;
-  icon: LucideIcon;
-  iconColor: string;
-}) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2">
-        <Icon size={16} className={iconColor} />
-        <p className="text-sm text-muted-foreground">{label}</p>
-      </div>
-      {loading ? (
-        <Skeleton className="mt-1 h-7 w-16" />
-      ) : (
-        <p className="mt-1 text-2xl font-semibold">{value}</p>
-      )}
-    </div>
-  );
-}
-
-function ActionCard({
-  label,
-  href,
-  icon: Icon,
-}: {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-center gap-2 rounded-lg border px-4 py-6 text-sm font-medium transition-all hover:bg-muted/50 hover:scale-[1.02] hover:border-foreground/20"
-    >
-      <Icon size={16} className="text-muted-foreground" />
-      {label}
-    </Link>
-  );
-}
-
-function HealthDot({ ok }: { ok: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-block h-2 w-2 rounded-full",
-        ok ? "bg-green-500" : "bg-yellow-500",
-      )}
+    <div
+      className={cn("animate-pulse rounded bg-muted", className)}
+      aria-hidden
     />
   );
 }
 
-function QuickStartStep({
-  step,
-  title,
-  children,
-}: {
-  step: number;
-  title: string;
-  children: React.ReactNode;
-}) {
+/* ------------------------------------------------------------------ */
+/*  Top-row stat cards                                                 */
+/* ------------------------------------------------------------------ */
+
+function PortfolioCard() {
+  const summary = useTradingSummary();
+  const loading = summary.isLoading;
+  const pnl = summary.data?.net_pnl ?? 0;
+  const positive = pnl >= 0;
+
   return (
-    <div className="flex gap-3">
-      <div className="shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-700 dark:text-blue-300">
-        {step}
+    <div className="rounded-lg border p-6">
+      <div className="flex items-center gap-2">
+        <BarChart3 size={16} className="text-purple-500" />
+        <p className="text-sm text-muted-foreground">Portfolio</p>
       </div>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="text-sm text-muted-foreground">{children}</p>
-      </div>
+      {loading ? (
+        <Skeleton className="mt-2 h-8 w-24" />
+      ) : (
+        <>
+          <p className="mt-2 text-2xl font-bold">
+            {summary.data?.trades_today ?? 0} trades today
+          </p>
+          <p
+            className={cn(
+              "mt-1 text-sm font-medium",
+              positive ? "text-green-500" : "text-red-500",
+            )}
+          >
+            {positive ? "+" : ""}
+            {pnl.toFixed(2)} P&amp;L
+            {summary.data?.win_rate != null && (
+              <span className="ml-2 text-muted-foreground">
+                {(summary.data.win_rate * 100).toFixed(0)}% win
+              </span>
+            )}
+          </p>
+        </>
+      )}
     </div>
   );
 }
 
-function ReadinessCheck({
-  label,
-  loading,
-  ok,
-  failColor = "text-yellow-500",
-}: {
-  label: string;
-  loading: boolean;
-  ok: boolean;
-  failColor?: string;
-}) {
+function AITradingCard() {
+  const status = useAutoTradeStatus();
+  const loading = status.isLoading;
+  const running = status.data?.running ?? false;
+  const signalsCount = status.data?.signals_count ?? 0;
+  const strategy =
+    (status.data?.config?.strategy as string | undefined) ?? "Default";
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="rounded-lg border p-6">
+      <div className="flex items-center gap-2">
+        <Brain size={16} className="text-blue-500" />
+        <p className="text-sm text-muted-foreground">AI Trading</p>
+      </div>
       {loading ? (
-        <Skeleton className="h-4 w-4 rounded-full" />
-      ) : ok ? (
-        <CheckCircle size={16} className="text-green-500" />
+        <Skeleton className="mt-2 h-8 w-24" />
       ) : (
-        <XCircle size={16} className={failColor} />
+        <>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={cn(
+                "inline-block h-2.5 w-2.5 rounded-full",
+                running ? "bg-green-500" : "bg-gray-400",
+              )}
+            />
+            <p className="text-2xl font-bold">
+              {running ? "Running" : "Stopped"}
+            </p>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {strategy} &middot; {signalsCount} signals
+          </p>
+        </>
       )}
-      <span>{label}</span>
     </div>
   );
 }
+
+function MarketOverviewCard() {
+  const conn = useConnectionStatus();
+  const loading = conn.isLoading;
+  const connected = conn.data?.connected ?? false;
+  const source = conn.data?.source ?? "Unknown";
+
+  return (
+    <div className="rounded-lg border p-6">
+      <div className="flex items-center gap-2">
+        <Radio size={16} className="text-green-500" />
+        <p className="text-sm text-muted-foreground">Market Connection</p>
+      </div>
+      {loading ? (
+        <Skeleton className="mt-2 h-8 w-24" />
+      ) : (
+        <>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={cn(
+                "inline-block h-2.5 w-2.5 rounded-full",
+                connected ? "bg-green-500" : "bg-red-500",
+              )}
+            />
+            <p className="text-2xl font-bold">
+              {connected ? "Connected" : "Disconnected"}
+            </p>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{source}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Signal Feed                                                        */
+/* ------------------------------------------------------------------ */
+
+function SignalFeed() {
+  const signals = useSignals();
+  const loading = signals.isLoading;
+  const items = (signals.data ?? []).slice(0, 10);
+
+  return (
+    <section className="rounded-lg border p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Activity size={16} className="text-blue-500" />
+        <h2 className="text-lg font-semibold">AI Signal Feed</h2>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Brain size={32} className="text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">
+            Start AI Trading to generate signals
+          </p>
+          <Link
+            href="/trading"
+            className="mt-3 text-sm font-medium text-blue-500 hover:underline"
+          >
+            Go to Trading
+          </Link>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-2 font-medium">Time</th>
+                <th className="pb-2 font-medium">Ticker</th>
+                <th className="pb-2 font-medium">Direction</th>
+                <th className="pb-2 font-medium">Confidence</th>
+                <th className="pb-2 font-medium">Reason</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {items.map((s) => (
+                <tr key={s.id} className="hover:bg-muted/30">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">
+                    {new Date(s.timestamp).toLocaleTimeString()}
+                  </td>
+                  <td className="py-2 pr-4 font-medium">{s.ticker}</td>
+                  <td className="py-2 pr-4">
+                    <span
+                      className={cn(
+                        "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                        s.direction === "buy"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+                      )}
+                    >
+                      {s.direction.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4">
+                    {(s.confidence * 100).toFixed(0)}%
+                  </td>
+                  <td className="py-2 text-muted-foreground line-clamp-1">
+                    {s.reason}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Quick Actions                                                      */
+/* ------------------------------------------------------------------ */
+
+const quickActions = [
+  { label: "Start AI Trading", href: "/trading", icon: Brain },
+  { label: "View Portfolio", href: "/trading", icon: BarChart3 },
+  { label: "Research Pipeline", href: "/research", icon: FlaskConical },
+  { label: "AI Intelligence", href: "/intelligence", icon: Activity },
+  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Audit Log", href: "/audit", icon: Shield },
+] as const;
+
+function QuickActions() {
+  return (
+    <section>
+      <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {quickActions.map((a) => (
+          <Link
+            key={a.label}
+            href={a.href}
+            className="flex items-center justify-center gap-2 rounded-lg border px-4 py-6 text-sm font-medium transition-all hover:bg-muted/50 hover:scale-[1.02] hover:border-foreground/20"
+          >
+            <a.icon size={16} className="text-muted-foreground" />
+            {a.label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Setup Wizard                                                       */
+/* ------------------------------------------------------------------ */
+
+const setupSteps = [
+  {
+    step: 1,
+    title: "Configure API Keys",
+    href: "/settings",
+    description: "Add your LLM and broker API keys",
+  },
+  {
+    step: 2,
+    title: "Choose Strategy",
+    href: "/trading",
+    description: "Select an AI trading strategy",
+  },
+  {
+    step: 3,
+    title: "Start Trading",
+    href: "/trading",
+    description: "Launch paper trading with AI signals",
+  },
+] as const;
+
+function SetupWizard() {
+  return (
+    <section className="rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-6">
+      <h2 className="text-lg font-semibold mb-4">Get Started</h2>
+      <div className="grid gap-4 md:grid-cols-3">
+        {setupSteps.map((s) => (
+          <Link key={s.step} href={s.href} className="flex gap-3 group">
+            <div className="shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-700 dark:text-blue-300">
+              {s.step}
+            </div>
+            <div>
+              <p className="font-medium group-hover:underline">{s.title}</p>
+              <p className="text-sm text-muted-foreground">{s.description}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
 
 export default function HomePage() {
-  const experiments = useExperiments();
-  const hypotheses = useHypotheses();
   const health = useHealth();
 
-  const recentExperiments = (experiments.data ?? []).slice(-5).reverse();
-  const recentHypotheses = (hypotheses.data ?? []).slice(-5).reverse();
-
-  const pipelineRunning = (experiments.data ?? []).some(
-    (e) => e.status === "running",
-  );
+  const keysConfigured =
+    !!health.data?.llm_keys || !!health.data?.alpaca_keys;
+  const showWizard = !health.isLoading && !keysConfigured;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-10 px-4 py-10">
-      <h1 className="text-3xl font-bold">Praxis Dashboard</h1>
+    <main className="mx-auto max-w-7xl space-y-8 px-4 py-10">
+      <h1 className="text-3xl font-bold">Command Center</h1>
 
-      {/* Quick Start wizard — shown only when no experiments exist */}
-      {!experiments.isLoading && (experiments.data ?? []).length === 0 && (
-        <section className="rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-6">
-          <h2 className="text-lg font-semibold mb-4">Quick Start</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <QuickStartStep step={1} title="Set API Keys">
-              Add OPENROUTER_API_KEY or ALPACA keys in .env
-            </QuickStartStep>
-            <QuickStartStep step={2} title="Create Hypothesis">
-              <Link href="/hypotheses">Define a causal trading thesis</Link>
-            </QuickStartStep>
-            <QuickStartStep step={3} title="Run Pipeline">
-              <Link href="/research">Ingest data &rarr; features &rarr; backtest</Link>
-            </QuickStartStep>
-          </div>
-        </section>
-      )}
+      {showWizard && <SetupWizard />}
 
-      {/* System Readiness */}
-      <section className="rounded-lg border p-4">
-        <h2 className="text-sm font-semibold mb-3">System Readiness</h2>
-        <div className="flex flex-wrap gap-6 text-sm">
-          <ReadinessCheck
-            label="API Backend"
-            loading={health.isLoading}
-            ok={health.data?.status === "ok"}
-            failColor="text-red-500"
-          />
-          <ReadinessCheck
-            label="LLM Keys"
-            loading={health.isLoading}
-            ok={!!health.data?.llm_keys}
-          />
-          <ReadinessCheck
-            label="Alpaca Paper Trading"
-            loading={health.isLoading}
-            ok={!!health.data?.alpaca_keys}
-          />
-        </div>
+      {/* Top row: 3 stat cards */}
+      <section className="grid gap-4 md:grid-cols-3">
+        <PortfolioCard />
+        <AITradingCard />
+        <MarketOverviewCard />
       </section>
 
-      <section>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            label="Total Experiments"
-            value={experiments.data?.length ?? 0}
-            loading={experiments.isLoading}
-            icon={FlaskConical}
-            iconColor="text-blue-500"
-          />
-          <StatCard
-            label="Total Hypotheses"
-            value={hypotheses.data?.length ?? 0}
-            loading={hypotheses.isLoading}
-            icon={Lightbulb}
-            iconColor="text-amber-500"
-          />
-          <StatCard
-            label="Pipeline Status"
-            value={pipelineRunning ? "Running" : "Idle"}
-            loading={experiments.isLoading}
-            icon={Activity}
-            iconColor="text-green-500"
-          />
-          <StatCard
-            label="Paper Trading"
-            value="Off"
-            loading={false}
-            icon={BarChart3}
-            iconColor="text-purple-500"
-          />
-        </div>
-      </section>
+      {/* Middle: Signal Feed */}
+      <SignalFeed />
 
-      <section>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Experiments</h2>
-          <Link
-            href="/experiments"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            View all &rarr;
-          </Link>
-        </div>
-
-        {experiments.isLoading ? (
-          <div className="mt-3 space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : recentExperiments.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No experiments yet.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y rounded-lg border">
-            {recentExperiments.map((exp) => (
-              <li
-                key={exp.id}
-                className="flex items-center justify-between border-l-2 border-l-transparent px-4 py-2 transition-colors hover:bg-muted/30 hover:border-l-foreground/20"
-              >
-                <span className="line-clamp-1 text-sm">{exp.name}</span>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={exp.status} />
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(exp.created_at)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Hypotheses</h2>
-          <Link
-            href="/hypotheses"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            View all &rarr;
-          </Link>
-        </div>
-
-        {hypotheses.isLoading ? (
-          <div className="mt-3 space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : recentHypotheses.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No hypotheses yet.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y rounded-lg border">
-            {recentHypotheses.map((h) => (
-              <li
-                key={h.id}
-                className="flex items-center justify-between border-l-2 border-l-transparent px-4 py-2 transition-colors hover:bg-muted/30 hover:border-l-foreground/20"
-              >
-                <span className="line-clamp-1 text-sm">{h.claim}</span>
-                <StatusBadge status={h.status} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold">Quick Actions</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-          <ActionCard label="New Experiment" href="/experiments?new=true" icon={Plus} />
-          <ActionCard label="New Hypothesis" href="/hypotheses" icon={Lightbulb} />
-          <ActionCard label="View Portfolio" href="/portfolios" icon={Eye} />
-          <ActionCard label="Paper Trading" href="/live" icon={Radio} />
-          <ActionCard label="Intelligence" href="/intelligence" icon={Brain} />
-          <ActionCard label="Audit Log" href="/audit" icon={ClipboardList} />
-        </div>
-      </section>
-
-      {/* Health footer bar */}
-      <footer className="flex items-center gap-6 rounded-lg border px-4 py-2 text-xs text-muted-foreground">
-        {health.isLoading ? (
-          <Skeleton className="h-4 w-48" />
-        ) : health.isError ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-            API unreachable
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <HealthDot ok={health.data?.status === "ok"} />
-              API: {health.data?.status ?? "unknown"}
-            </div>
-            <div className="flex items-center gap-2">
-              <HealthDot ok={health.data?.database === "ok"} />
-              DB: {health.data?.database ?? "unknown"}
-            </div>
-          </>
-        )}
-      </footer>
+      {/* Bottom: Quick Actions */}
+      <QuickActions />
     </main>
   );
 }

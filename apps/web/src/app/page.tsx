@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -12,10 +13,21 @@ import {
   Shield,
 } from "lucide-react";
 import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
+import {
   useTradingSummary,
   useAutoTradeStatus,
   useSignals,
   useConnectionStatus,
+  useSymbolSearchEnriched,
 } from "@/hooks/use-live";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,6 +51,12 @@ function useHealth() {
     refetchInterval: 30_000,
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  Market overview constants                                          */
+/* ------------------------------------------------------------------ */
+
+const MARKET_SYMBOLS = ["SPY", "QQQ", "NVDA"] as const;
 
 /* ------------------------------------------------------------------ */
 /*  Shared components                                                  */
@@ -251,6 +269,108 @@ function SignalFeed() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Signal Charts                                                      */
+/* ------------------------------------------------------------------ */
+
+function SignalCharts() {
+  const signals = useSignals();
+
+  const signalTrend = useMemo(() => {
+    if (!signals.data?.length) return [];
+    return signals.data.slice(-20).map((s, i) => ({
+      idx: i,
+      confidence: Math.round(s.confidence * 100),
+    }));
+  }, [signals.data]);
+
+  if (signalTrend.length === 0) return null;
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-lg border p-4">
+        <h3 className="text-sm font-semibold mb-2">Confidence Trend</h3>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={signalTrend}>
+            <Line
+              type="monotone"
+              dataKey="confidence"
+              stroke="#8b5cf6"
+              strokeWidth={2}
+              dot={false}
+            />
+            <YAxis domain={[0, 100]} hide />
+            <Tooltip
+              formatter={(value: number) => [`${value}%`, "Confidence"]}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="rounded-lg border p-4">
+        <h3 className="text-sm font-semibold mb-2">Signal Activity</h3>
+        <ResponsiveContainer width="100%" height={120}>
+          <BarChart data={signalTrend}>
+            <Bar dataKey="confidence" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+            <XAxis dataKey="idx" hide />
+            <Tooltip
+              formatter={(value: number) => [`${value}%`, "Confidence"]}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Market Overview                                                    */
+/* ------------------------------------------------------------------ */
+
+function MarketSymbolCard({ symbol }: { symbol: string }) {
+  const query = useSymbolSearchEnriched(symbol);
+  const item = query.data?.find((m) => m.symbol === symbol);
+
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-xs text-muted-foreground">{symbol}</p>
+      {query.isLoading ? (
+        <Skeleton className="mt-1 h-7 w-20" />
+      ) : (
+        <>
+          <p className="text-lg font-bold">
+            ${item?.price?.toFixed(2) ?? "--"}
+          </p>
+          {item?.change_pct != null && (
+            <p
+              className={cn(
+                "text-xs font-medium",
+                item.change_pct >= 0 ? "text-green-600" : "text-red-600",
+              )}
+            >
+              {item.change_pct >= 0 ? "+" : ""}
+              {item.change_pct.toFixed(2)}%
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function MarketOverview() {
+  return (
+    <section>
+      <h2 className="text-lg font-semibold mb-3">Market Overview</h2>
+      <div className="grid grid-cols-3 gap-3">
+        {MARKET_SYMBOLS.map((sym) => (
+          <MarketSymbolCard key={sym} symbol={sym} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Quick Actions                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -353,10 +473,16 @@ export default function HomePage() {
         <MarketOverviewCard />
       </section>
 
-      {/* Middle: Signal Feed */}
+      {/* Charts: confidence trend + signal activity */}
+      <SignalCharts />
+
+      {/* Market Overview: major index prices */}
+      <MarketOverview />
+
+      {/* Signal Feed */}
       <SignalFeed />
 
-      {/* Bottom: Quick Actions */}
+      {/* Quick Actions */}
       <QuickActions />
     </main>
   );

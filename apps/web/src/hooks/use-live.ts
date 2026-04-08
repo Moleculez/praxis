@@ -87,7 +87,9 @@ export function useSubmitOrder() {
       ticker: string;
       side: string;
       quantity: number;
-      price: number;
+      price?: number;
+      order_type?: string;
+      time_in_force?: string;
     }) =>
       apiFetch<Order>("/live/orders", {
         method: "POST",

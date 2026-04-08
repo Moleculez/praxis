@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { Nav } from "@/components/nav";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,10 +28,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <Providers>
-          <Nav />
-          <main className="md:ml-56 min-h-screen max-w-screen-2xl p-6 md:p-8 overflow-auto">
-            {children}
-          </main>
+          <AuthenticatedShell>{children}</AuthenticatedShell>
         </Providers>
       </body>
     </html>

@@ -14,6 +14,7 @@ from services.backend.adapters.db.models import Base
 from services.backend.adapters.http.middleware import domain_error_handler
 from services.backend.adapters.http.routes import (
     audit,
+    auth,
     experiments,
     health,
     hypotheses,
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_exception_handler(DomainError, domain_error_handler)  # type: ignore[arg-type]
+    app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(health.router, tags=["health"])
     app.include_router(experiments.router, prefix="/experiments", tags=["experiments"])
     app.include_router(hypotheses.router, prefix="/hypotheses", tags=["hypotheses"])

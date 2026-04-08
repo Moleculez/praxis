@@ -46,7 +46,8 @@ async def experiment_pipeline_status(experiment_id: str) -> dict[str, Any]:
     """
     if experiment_id not in _pipeline_status:
         return {s: "not_started" for s in _DEFAULT_STAGES}
-    return _pipeline_status[experiment_id]
+    # Exclude internal _df key from the response.
+    return {k: v for k, v in _pipeline_status[experiment_id].items() if not k.startswith("_")}
 
 
 @router.post("/pipeline/{experiment_id}/run/{stage}")
@@ -67,10 +68,17 @@ async def run_pipeline_stage(experiment_id: str, stage: str) -> dict[str, Any]:
 
     _pipeline_status[experiment_id][stage] = "running"
 
+    # Retrieve any stored DataFrame from a previous data stage run.
+    stored_df = _pipeline_status[experiment_id].get("_df")
+
     stage_start = _time.monotonic()
     try:
-        detail = _execute_stage(stage)
-        detail.pop("_df", None)
+        detail = _execute_stage(stage, df=stored_df)
+
+        # Persist the DataFrame for subsequent stage calls, but never
+        # return it to the client.
+        if "_df" in detail:
+            _pipeline_status[experiment_id]["_df"] = detail.pop("_df")
         duration = round(_time.monotonic() - stage_start, 2)
         _pipeline_status[experiment_id][stage] = "completed"
         return {

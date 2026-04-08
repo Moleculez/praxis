@@ -9,6 +9,16 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # Server
+    host: str = "0.0.0.0"
+    port: int = 8000
+    workers: int = 4
+    log_level: Literal["debug", "info", "warning", "error"] = "info"
+
+    # Security
+    jwt_secret: str = "praxis-jwt-secret-change-in-production"
+    allowed_hosts: str = "*"
+
     # Database — SQLite by default for dev, Postgres for production
     database_url: str = "sqlite+aiosqlite:///data/praxis.db"
     timescale_url: str = ""  # Only needed in production

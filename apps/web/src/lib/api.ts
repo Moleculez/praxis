@@ -1,4 +1,7 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export const TOKEN_KEY = "token";
 
 export interface ApiError {
   status: number;
@@ -16,14 +19,27 @@ export async function apiFetch<T>(
 
   try {
     const { timeout: _timeout, ...fetchInit } = init ?? {};
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
     const response = await fetch(url, {
       ...fetchInit,
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders,
         ...init?.headers,
       },
     });
+
+    if (response.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.href = "/login";
+      throw { status: 401, message: "Session expired" } as ApiError;
+    }
 
     if (!response.ok) {
       const body = await response.text();

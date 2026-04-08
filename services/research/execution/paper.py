@@ -41,6 +41,8 @@ class PaperTrader(Broker):
         side: str,
         quantity: float,
         price: float | None = None,
+        order_type: str | None = None,
+        time_in_force: str = "day",
     ) -> dict[str, Any]:
         """Submit a paper trade order.
 
@@ -49,19 +51,22 @@ class PaperTrader(Broker):
             side: "buy" or "sell".
             quantity: Number of shares.
             price: Limit price. If None a market order is placed.
+            order_type: "market" or "limit". Auto-detected from price if None.
+            time_in_force: "day", "gtc", "ioc", or "fok".
 
         Returns:
             Order dict from Alpaca.
         """
-        order_type = "limit" if price is not None else "market"
+        if order_type is None:
+            order_type = "limit" if price is not None else "market"
         payload: dict[str, Any] = {
             "symbol": ticker,
             "qty": str(quantity),
             "side": side,
             "type": order_type,
-            "time_in_force": "day",
+            "time_in_force": time_in_force,
         }
-        if price is not None:
+        if price is not None and order_type == "limit":
             payload["limit_price"] = str(price)
 
         resp = self._client.post("/v2/orders", json=payload)

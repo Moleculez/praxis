@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from "recharts";
 import { TickerAutocomplete } from "@/components/ticker-autocomplete";
 import { cn } from "@/lib/utils";
 import {
@@ -527,22 +531,27 @@ function ManualOrderForm() {
 
   const [ticker, setTicker] = useState("");
   const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
+  const [timeInForce, setTimeInForce] = useState<"day" | "gtc">("day");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!ticker || !quantity || !price) return;
+    if (!ticker || !quantity) return;
+    if (orderType === "limit" && !price) return;
     submitOrder.mutate(
       {
         ticker: ticker.toUpperCase(),
         side,
         quantity: Number(quantity),
-        price: Number(price),
+        price: orderType === "limit" ? Number(price) : undefined,
+        order_type: orderType,
+        time_in_force: timeInForce,
       },
       {
         onSuccess: () => {
-          toast.success("Order submitted");
+          toast.success(`${orderType === "market" ? "Market" : "Limit"} order submitted`);
           setTicker("");
           setQuantity("");
           setPrice("");
@@ -556,13 +565,10 @@ function ManualOrderForm() {
 
   return (
     <div className="rounded-lg border p-4">
-      <h2 className="text-lg font-semibold mb-4">Manual Order</h2>
+      <h2 className="text-lg font-semibold mb-4">Place Order</h2>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor="order-ticker"
-            className="text-xs font-medium text-muted-foreground"
-          >
+          <label htmlFor="order-ticker" className="text-xs font-medium text-muted-foreground">
             Ticker
           </label>
           <TickerAutocomplete
@@ -573,10 +579,9 @@ function ManualOrderForm() {
           />
         </div>
 
+        {/* Buy / Sell */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Side
-          </label>
+          <label className="text-xs font-medium text-muted-foreground">Side</label>
           <div className="flex h-9 overflow-hidden rounded-md border">
             <button
               type="button"
@@ -605,13 +610,42 @@ function ManualOrderForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="order-qty"
-              className="text-xs font-medium text-muted-foreground"
+        {/* Order Type: Market / Limit */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Order Type</label>
+          <div className="flex h-9 overflow-hidden rounded-md border">
+            <button
+              type="button"
+              onClick={() => setOrderType("market")}
+              className={cn(
+                "flex-1 px-3 text-sm font-medium transition-colors",
+                orderType === "market"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
             >
-              Quantity
+              Market
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderType("limit")}
+              className={cn(
+                "flex-1 px-3 text-sm font-medium transition-colors",
+                orderType === "limit"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              Limit
+            </button>
+          </div>
+        </div>
+
+        {/* Quantity + Price (price only for limit) */}
+        <div className={cn("grid gap-3", orderType === "limit" ? "grid-cols-2" : "grid-cols-1")}>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="order-qty" className="text-xs font-medium text-muted-foreground">
+              Shares
             </label>
             <input
               id="order-qty"
@@ -623,32 +657,72 @@ function ManualOrderForm() {
               className="h-9 rounded-md border bg-background px-3 text-sm"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="order-price"
-              className="text-xs font-medium text-muted-foreground"
+          {orderType === "limit" && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="order-price" className="text-xs font-medium text-muted-foreground">
+                Limit Price
+              </label>
+              <input
+                id="order-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="150.00"
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Time in Force */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Duration</label>
+          <div className="flex h-9 overflow-hidden rounded-md border">
+            <button
+              type="button"
+              onClick={() => setTimeInForce("day")}
+              className={cn(
+                "flex-1 px-3 text-sm font-medium transition-colors",
+                timeInForce === "day"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
             >
-              Price
-            </label>
-            <input
-              id="order-price"
-              type="number"
-              min="0"
-              step="0.01"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="150.00"
-              className="h-9 rounded-md border bg-background px-3 text-sm"
-            />
+              Day
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimeInForce("gtc")}
+              className={cn(
+                "flex-1 px-3 text-sm font-medium transition-colors",
+                timeInForce === "gtc"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              GTC
+            </button>
           </div>
+          <p className="text-[10px] text-muted-foreground">
+            {timeInForce === "day" ? "Cancels at market close" : "Good til cancelled"}
+          </p>
         </div>
 
         <button
           type="submit"
-          disabled={submitOrder.isPending || !ticker || !quantity || !price}
-          className="h-9 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          disabled={submitOrder.isPending || !ticker || !quantity || (orderType === "limit" && !price)}
+          className={cn(
+            "h-10 w-full rounded-md px-4 text-sm font-medium transition-colors disabled:opacity-50",
+            side === "buy"
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "bg-red-600 text-white hover:bg-red-700",
+          )}
         >
-          {submitOrder.isPending ? "Submitting..." : "Submit Order"}
+          {submitOrder.isPending
+            ? "Submitting..."
+            : `${side === "buy" ? "Buy" : "Sell"} ${ticker || "..."} ${orderType === "market" ? "(Market)" : "(Limit)"}`}
         </button>
       </form>
     </div>
@@ -755,6 +829,109 @@ function GenerateSignalForm() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Charts                                                             */
+/* ------------------------------------------------------------------ */
+
+function EquityCurveChart() {
+  const orders = useOrders();
+  const equityData = useMemo(() => {
+    if (!orders.data?.length) return [];
+    let cumulative = 0;
+    return orders.data.map((o) => {
+      const pnl = o.side === "sell" ? o.price * o.quantity : -(o.price * o.quantity);
+      cumulative += pnl;
+      return { time: new Date(o.timestamp).toLocaleDateString(), pnl: Math.round(cumulative) };
+    });
+  }, [orders.data]);
+
+  return (
+    <div className="rounded-lg border p-4">
+      <h3 className="text-sm font-semibold mb-3">Equity Curve</h3>
+      {equityData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={equityData}>
+            <XAxis dataKey="time" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Line type="monotone" dataKey="pnl" stroke="#3b82f6" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-sm text-muted-foreground py-8 text-center">No trades yet</p>
+      )}
+    </div>
+  );
+}
+
+const ALLOC_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+function AllocationChart() {
+  const positions = usePositions();
+  const data = useMemo(() => {
+    if (!positions.data?.length) return [];
+    return positions.data.map((p) => ({ name: p.ticker, value: Math.abs(p.quantity * p.current_price) }));
+  }, [positions.data]);
+
+  return (
+    <div className="rounded-lg border p-4">
+      <h3 className="text-sm font-semibold mb-3">Position Allocation</h3>
+      {data.length > 0 ? (
+        <ResponsiveContainer width="100%" height={200}>
+          <PieChart>
+            <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" nameKey="name" label={({ name }) => name}>
+              {data.map((_, i) => (<Cell key={i} fill={ALLOC_COLORS[i % ALLOC_COLORS.length]} />))}
+            </Pie>
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+          </PieChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-sm text-muted-foreground py-8 text-center">No positions yet</p>
+      )}
+    </div>
+  );
+}
+
+function ConfidenceDistribution() {
+  const signals = useSignals();
+  const data = useMemo(() => {
+    if (!signals.data?.length) return [];
+    const buckets = [
+      { range: "30-40%", count: 0 }, { range: "40-50%", count: 0 },
+      { range: "50-60%", count: 0 }, { range: "60-70%", count: 0 },
+      { range: "70-80%", count: 0 }, { range: "80%+", count: 0 },
+    ];
+    signals.data.forEach((s) => {
+      const pct = s.confidence * 100;
+      if (pct >= 80) buckets[5].count++;
+      else if (pct >= 70) buckets[4].count++;
+      else if (pct >= 60) buckets[3].count++;
+      else if (pct >= 50) buckets[2].count++;
+      else if (pct >= 40) buckets[1].count++;
+      else buckets[0].count++;
+    });
+    return buckets;
+  }, [signals.data]);
+
+  return (
+    <div className="rounded-lg border p-4">
+      <h3 className="text-sm font-semibold mb-3">Signal Confidence</h3>
+      {data.length > 0 ? (
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={data}>
+            <XAxis dataKey="range" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+            <Tooltip />
+            <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-sm text-muted-foreground py-8 text-center">No signals yet</p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -763,21 +940,22 @@ export default function TradingPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Trading</h1>
 
-      {/* Top bar — AI Trading Controls */}
       <AIControlBar />
 
-      {/* Two-column layout: 3 cols left, 2 cols right */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Left column (60%) */}
         <div className="space-y-6 lg:col-span-3">
           <PortfolioSummary />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <EquityCurveChart />
+            <AllocationChart />
+          </div>
           <PositionsTable />
           <OrderHistory />
         </div>
 
-        {/* Right column (40%) */}
         <div className="space-y-6 lg:col-span-2">
           <SignalFeed />
+          <ConfidenceDistribution />
           <ManualOrderForm />
           <GenerateSignalForm />
         </div>

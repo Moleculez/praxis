@@ -6,10 +6,14 @@ import logging
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 
 from services.research.execution.strategy import StrategyConfig, StrategyEngine
+
+if TYPE_CHECKING:
+    from services.research.execution.paper import PaperTrader
 
 logger = logging.getLogger(__name__)
 
@@ -18,104 +22,54 @@ router = APIRouter()
 # Module-level strategy engine for auto-trade endpoints.
 _engine = StrategyEngine()
 
-# Popular US stock tickers with metadata for enriched autocomplete
-_TICKER_INFO: list[dict] = [
-    # Mega-cap tech
-    {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Technology", "market_cap": "3.4T"},
-    {"symbol": "MSFT", "name": "Microsoft Corp.", "sector": "Technology", "market_cap": "3.1T"},
-    {"symbol": "GOOGL", "name": "Alphabet Inc. (Class A)", "sector": "Technology", "market_cap": "2.1T"},
-    {"symbol": "AMZN", "name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "market_cap": "2.0T"},
-    {"symbol": "NVDA", "name": "NVIDIA Corp.", "sector": "Technology", "market_cap": "2.8T"},
-    {"symbol": "META", "name": "Meta Platforms Inc.", "sector": "Technology", "market_cap": "1.5T"},
-    {"symbol": "TSLA", "name": "Tesla Inc.", "sector": "Consumer Cyclical", "market_cap": "800B"},
-    {"symbol": "BRK.B", "name": "Berkshire Hathaway (B)", "sector": "Financials", "market_cap": "900B"},
-    # Healthcare
-    {"symbol": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare", "market_cap": "500B"},
-    {"symbol": "JNJ", "name": "Johnson & Johnson", "sector": "Healthcare", "market_cap": "380B"},
-    {"symbol": "LLY", "name": "Eli Lilly & Co.", "sector": "Healthcare", "market_cap": "750B"},
-    {"symbol": "MRK", "name": "Merck & Co.", "sector": "Healthcare", "market_cap": "280B"},
-    {"symbol": "ABBV", "name": "AbbVie Inc.", "sector": "Healthcare", "market_cap": "310B"},
-    {"symbol": "AMGN", "name": "Amgen Inc.", "sector": "Healthcare", "market_cap": "150B"},
-    # Financials
-    {"symbol": "V", "name": "Visa Inc.", "sector": "Financials", "market_cap": "550B"},
-    {"symbol": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials", "market_cap": "600B"},
-    {"symbol": "MA", "name": "Mastercard Inc.", "sector": "Financials", "market_cap": "430B"},
-    {"symbol": "GS", "name": "Goldman Sachs Group", "sector": "Financials", "market_cap": "160B"},
-    # Energy
-    {"symbol": "XOM", "name": "Exxon Mobil Corp.", "sector": "Energy", "market_cap": "460B"},
-    {"symbol": "CVX", "name": "Chevron Corp.", "sector": "Energy", "market_cap": "280B"},
-    # Consumer
-    {"symbol": "PG", "name": "Procter & Gamble Co.", "sector": "Consumer Staples", "market_cap": "380B"},
-    {"symbol": "KO", "name": "Coca-Cola Co.", "sector": "Consumer Staples", "market_cap": "270B"},
-    {"symbol": "PEP", "name": "PepsiCo Inc.", "sector": "Consumer Staples", "market_cap": "230B"},
-    {"symbol": "COST", "name": "Costco Wholesale", "sector": "Consumer Staples", "market_cap": "350B"},
-    {"symbol": "WMT", "name": "Walmart Inc.", "sector": "Consumer Staples", "market_cap": "500B"},
-    {"symbol": "MCD", "name": "McDonald's Corp.", "sector": "Consumer Cyclical", "market_cap": "200B"},
-    {"symbol": "HD", "name": "Home Depot Inc.", "sector": "Consumer Cyclical", "market_cap": "340B"},
-    {"symbol": "LOW", "name": "Lowe's Companies", "sector": "Consumer Cyclical", "market_cap": "140B"},
-    {"symbol": "DIS", "name": "Walt Disney Co.", "sector": "Communication", "market_cap": "170B"},
-    {"symbol": "NFLX", "name": "Netflix Inc.", "sector": "Communication", "market_cap": "280B"},
-    # Tech continued
-    {"symbol": "AVGO", "name": "Broadcom Inc.", "sector": "Technology", "market_cap": "650B"},
-    {"symbol": "CSCO", "name": "Cisco Systems", "sector": "Technology", "market_cap": "230B"},
-    {"symbol": "ACN", "name": "Accenture PLC", "sector": "Technology", "market_cap": "210B"},
-    {"symbol": "TXN", "name": "Texas Instruments", "sector": "Technology", "market_cap": "170B"},
-    {"symbol": "ORCL", "name": "Oracle Corp.", "sector": "Technology", "market_cap": "340B"},
-    {"symbol": "AMD", "name": "Advanced Micro Devices", "sector": "Technology", "market_cap": "220B"},
-    {"symbol": "CRM", "name": "Salesforce Inc.", "sector": "Technology", "market_cap": "250B"},
-    {"symbol": "INTC", "name": "Intel Corp.", "sector": "Technology", "market_cap": "100B"},
-    {"symbol": "QCOM", "name": "Qualcomm Inc.", "sector": "Technology", "market_cap": "180B"},
-    {"symbol": "INTU", "name": "Intuit Inc.", "sector": "Technology", "market_cap": "180B"},
-    # Industrials
-    {"symbol": "BA", "name": "Boeing Co.", "sector": "Industrials", "market_cap": "130B"},
-    {"symbol": "RTX", "name": "RTX Corp.", "sector": "Industrials", "market_cap": "150B"},
-    {"symbol": "UNP", "name": "Union Pacific Corp.", "sector": "Industrials", "market_cap": "150B"},
-    {"symbol": "TMO", "name": "Thermo Fisher Scientific", "sector": "Healthcare", "market_cap": "200B"},
-    {"symbol": "ABT", "name": "Abbott Laboratories", "sector": "Healthcare", "market_cap": "190B"},
-    {"symbol": "DHR", "name": "Danaher Corp.", "sector": "Healthcare", "market_cap": "180B"},
-    {"symbol": "NEE", "name": "NextEra Energy", "sector": "Utilities", "market_cap": "150B"},
-    {"symbol": "LIN", "name": "Linde PLC", "sector": "Materials", "market_cap": "210B"},
-    {"symbol": "PM", "name": "Philip Morris Intl.", "sector": "Consumer Staples", "market_cap": "190B"},
+# Popular US stock tickers for autocomplete
+_POPULAR_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "NVDA", "META", "TSLA", "BRK.B",
+    "UNH", "JNJ", "V", "XOM", "JPM", "PG", "MA", "HD", "CVX", "MRK", "ABBV",
+    "LLY", "PEP", "KO", "COST", "AVGO", "WMT", "MCD", "CSCO", "TMO", "ACN",
+    "ABT", "DHR", "NEE", "LIN", "TXN", "PM", "RTX", "UNP", "ORCL", "AMD",
+    "CRM", "NFLX", "DIS", "INTC", "QCOM", "AMGN", "INTU", "LOW", "GS", "BA",
     # ETFs
-    {"symbol": "SPY", "name": "SPDR S&P 500 ETF", "sector": "ETF", "market_cap": "500B+"},
-    {"symbol": "QQQ", "name": "Invesco QQQ (Nasdaq-100)", "sector": "ETF", "market_cap": "250B+"},
-    {"symbol": "IWM", "name": "iShares Russell 2000 ETF", "sector": "ETF", "market_cap": "60B"},
-    {"symbol": "DIA", "name": "SPDR Dow Jones ETF", "sector": "ETF", "market_cap": "30B"},
-    {"symbol": "VTI", "name": "Vanguard Total Stock Market", "sector": "ETF", "market_cap": "400B+"},
-    {"symbol": "VOO", "name": "Vanguard S&P 500 ETF", "sector": "ETF", "market_cap": "450B+"},
-    {"symbol": "VEA", "name": "Vanguard FTSE Developed", "sector": "ETF", "market_cap": "100B"},
-    {"symbol": "VWO", "name": "Vanguard FTSE Emerging", "sector": "ETF", "market_cap": "70B"},
-    {"symbol": "BND", "name": "Vanguard Total Bond ETF", "sector": "ETF", "market_cap": "100B"},
-    {"symbol": "TLT", "name": "iShares 20+ Year Treasury", "sector": "ETF", "market_cap": "50B"},
-    {"symbol": "GLD", "name": "SPDR Gold Shares", "sector": "ETF", "market_cap": "65B"},
-    {"symbol": "SLV", "name": "iShares Silver Trust", "sector": "ETF", "market_cap": "12B"},
-    {"symbol": "XLF", "name": "Financial Select Sector", "sector": "ETF", "market_cap": "40B"},
-    {"symbol": "XLK", "name": "Technology Select Sector", "sector": "ETF", "market_cap": "60B"},
-    {"symbol": "XLE", "name": "Energy Select Sector", "sector": "ETF", "market_cap": "35B"},
-    {"symbol": "XLV", "name": "Health Care Select Sector", "sector": "ETF", "market_cap": "40B"},
-    {"symbol": "XLI", "name": "Industrial Select Sector", "sector": "ETF", "market_cap": "20B"},
-    {"symbol": "XLY", "name": "Consumer Discretionary", "sector": "ETF", "market_cap": "20B"},
-    {"symbol": "ARKK", "name": "ARK Innovation ETF", "sector": "ETF", "market_cap": "6B"},
-    {"symbol": "SOXX", "name": "iShares Semiconductor ETF", "sector": "ETF", "market_cap": "12B"},
-    # Crypto
-    {"symbol": "BTC/USD", "name": "Bitcoin", "sector": "Crypto", "market_cap": "1.3T"},
-    {"symbol": "ETH/USD", "name": "Ethereum", "sector": "Crypto", "market_cap": "400B"},
-    {"symbol": "SOL/USD", "name": "Solana", "sector": "Crypto", "market_cap": "65B"},
-    {"symbol": "DOGE/USD", "name": "Dogecoin", "sector": "Crypto", "market_cap": "20B"},
-    {"symbol": "ADA/USD", "name": "Cardano", "sector": "Crypto", "market_cap": "15B"},
+    "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VEA", "VWO", "BND", "TLT",
+    "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "ARKK", "SOXX",
+    # Crypto (Alpaca supports these)
+    "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "ADA/USD",
 ]
-
-_POPULAR_TICKERS = [t["symbol"] for t in _TICKER_INFO]
 
 # In-memory state for paper trading (resets on restart).
 _MAX_ORDERS = 10_000
 _orders: list[dict] = []
 _positions: dict[str, dict] = {}
 
+# Cached PaperTrader instance (created once, reuses httpx.Client connection).
+_trader_cache: PaperTrader | None = None
+_trader_checked: bool = False
+
+
+def _get_trader() -> PaperTrader | None:
+    """Return a cached PaperTrader if Alpaca keys are configured, else None."""
+    global _trader_cache, _trader_checked  # noqa: PLW0603
+    if _trader_checked:
+        return _trader_cache
+
+    from services.backend.config import get_settings
+
+    settings = get_settings()
+    if settings.alpaca_api_key and settings.alpaca_secret_key:
+        from services.research.execution.paper import PaperTrader as _PaperTrader
+
+        _trader_cache = _PaperTrader(
+            settings.alpaca_api_key,
+            settings.alpaca_secret_key,
+            settings.alpaca_base_url,
+        )
+    _trader_checked = True
+    return _trader_cache
+
 
 @router.get("/symbols")
 async def search_symbols(q: str = "") -> list[str]:
-    """Search ticker symbols for autocomplete (simple)."""
+    """Search ticker symbols for autocomplete."""
     if not q:
         return _POPULAR_TICKERS[:20]
     q_upper = q.upper()
@@ -123,35 +77,79 @@ async def search_symbols(q: str = "") -> list[str]:
     return matches[:15]
 
 
-@router.get("/symbols/search")
-async def search_symbols_enriched(q: str = "") -> list[dict]:
-    """Search ticker symbols with enriched metadata (name, sector, market cap)."""
-    if not q:
-        return _TICKER_INFO[:20]
-    q_upper = q.upper()
-    q_lower = q.lower()
-    matches = [
-        t for t in _TICKER_INFO
-        if t["symbol"].startswith(q_upper) or q_lower in t["name"].lower()
-    ]
-    return matches[:15]
-
-
 @router.get("/positions")
 async def get_positions() -> list[dict]:
     """Return all open paper-trading positions."""
+    trader = _get_trader()
+    if trader:
+        try:
+            alpaca_positions = trader.get_positions()
+            return [
+                {
+                    "ticker": p["symbol"],
+                    "quantity": float(p["qty"]),
+                    "avg_price": float(p["avg_entry_price"]),
+                    "current_price": float(p["current_price"]),
+                }
+                for p in alpaca_positions
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("Alpaca positions fetch failed, using in-memory")
     return list(_positions.values())
 
 
 @router.get("/orders")
 async def get_orders() -> list[dict]:
     """Return all paper-trading orders."""
+    trader = _get_trader()
+    if trader:
+        try:
+            alpaca_orders = trader.get_orders(status="all", limit=50)
+            return [
+                {
+                    "id": o["id"],
+                    "ticker": o["symbol"],
+                    "side": o["side"],
+                    "quantity": float(o["qty"]),
+                    "price": float(
+                        o.get("filled_avg_price") or o.get("limit_price") or 0
+                    ),
+                    "status": o["status"],
+                    "timestamp": o["created_at"],
+                }
+                for o in alpaca_orders
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("Alpaca orders fetch failed, using in-memory")
     return _orders
 
 
 @router.post("/orders")
 async def submit_order(body: dict) -> dict:
-    """Submit a paper-trading order (instantly filled)."""
+    """Submit a paper-trading order (instantly filled in mock mode)."""
+    trader = _get_trader()
+    if trader:
+        try:
+            result = trader.submit_order(
+                ticker=body["ticker"],
+                side=body["side"],
+                quantity=body["quantity"],
+                price=body.get("price"),
+            )
+            return {
+                "id": result["id"],
+                "ticker": result["symbol"],
+                "side": result["side"],
+                "quantity": float(result["qty"]),
+                "price": float(result.get("limit_price") or 0),
+                "status": result["status"],
+                "timestamp": result["created_at"],
+                "source": "alpaca",
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Alpaca order failed: %s, falling back to mock", exc)
+
+    # Fall back to in-memory mock
     order: dict = {
         "id": str(uuid.uuid4()),
         "ticker": body["ticker"],
@@ -160,6 +158,7 @@ async def submit_order(body: dict) -> dict:
         "price": body["price"],
         "status": "filled",
         "timestamp": datetime.now(UTC).isoformat(),
+        "source": "mock",
     }
     _orders.append(order)
     if len(_orders) > _MAX_ORDERS:
@@ -185,12 +184,62 @@ async def submit_order(body: dict) -> dict:
 @router.get("/summary")
 async def get_summary() -> dict:
     """Return paper-trading session summary."""
+    trader = _get_trader()
+    if trader:
+        try:
+            acct = trader.get_account()
+            equity = float(acct.get("equity", 0))
+            cash = float(acct.get("cash", 0))
+            last_equity = float(acct.get("last_equity", equity))
+            daily_pnl = equity - last_equity
+            return {
+                "trades_today": len(_orders),
+                "gross_pnl": daily_pnl,
+                "net_pnl": daily_pnl,
+                "win_rate": None,
+                "paper_trading": True,
+                "source": "alpaca",
+                "equity": equity,
+                "cash": cash,
+            }
+        except Exception:  # noqa: BLE001
+            logger.warning("Alpaca summary failed, using mock")
+
+    # Mock fallback with basic P&L from in-memory positions
+    gross_pnl = sum(
+        (pos.get("current_price", 0) - pos.get("avg_price", 0))
+        * pos.get("quantity", 0)
+        for pos in _positions.values()
+    )
     return {
         "trades_today": len(_orders),
-        "gross_pnl": 0.0,
-        "net_pnl": 0.0,
+        "gross_pnl": round(gross_pnl, 2),
+        "net_pnl": round(gross_pnl, 2),
         "win_rate": None,
         "paper_trading": True,
+        "source": "mock",
+    }
+
+
+@router.get("/connection-status")
+async def connection_status() -> dict:
+    """Check whether Alpaca paper-trading API is reachable."""
+    trader = _get_trader()
+    if trader:
+        try:
+            acct = trader.get_account()
+            return {
+                "connected": True,
+                "source": "alpaca",
+                "account_id": acct.get("id", ""),
+                "equity": float(acct.get("equity", 0)),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {"connected": False, "source": "alpaca", "error": str(exc)}
+    return {
+        "connected": False,
+        "source": "mock",
+        "error": "No Alpaca API keys configured",
     }
 
 
@@ -254,28 +303,41 @@ async def generate_signal(body: dict) -> dict:
 
     # If engine is running and signal is actionable, build an order
     if _engine.is_running and signal.direction != "hold":
+        trader = _get_trader()
         equity = 100_000.0  # Default mock equity for paper trading
-        try:
-            from services.backend.config import get_settings
-
-            settings = get_settings()
-            if settings.alpaca_api_key:
-                from services.research.execution.paper import PaperTrader
-
-                trader = PaperTrader(
-                    settings.alpaca_api_key,
-                    settings.alpaca_secret_key,
-                    settings.alpaca_base_url,
-                )
+        if trader:
+            try:
                 acct = trader.get_account()
                 equity = float(acct.get("equity", 100_000))
-        except Exception:  # noqa: BLE001
-            pass
+            except Exception:  # noqa: BLE001
+                pass
 
         position_value = _engine.size_position(signal, equity)
         if position_value > 0:
             price: float = body.get("price", 100.0)
             quantity = max(1, int(position_value / price))
+            order_result = None
+            if trader:
+                try:
+                    order_result = trader.submit_order(
+                        ticker, signal.direction, quantity, price
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Alpaca order submission failed: %s", exc)
+
+            if order_result:
+                return {
+                    "signal": asdict(signal),
+                    "order": {
+                        "id": order_result["id"],
+                        "ticker": order_result["symbol"],
+                        "side": order_result["side"],
+                        "quantity": float(order_result["qty"]),
+                        "position_value": position_value,
+                        "status": order_result["status"],
+                        "source": "alpaca",
+                    },
+                }
             return {
                 "signal": asdict(signal),
                 "order": {
@@ -284,6 +346,7 @@ async def generate_signal(body: dict) -> dict:
                     "quantity": quantity,
                     "position_value": position_value,
                     "status": "submitted",
+                    "source": "mock",
                 },
             }
 
@@ -324,7 +387,9 @@ async def evaluate_and_signal(body: dict) -> dict:
         synthesis = await _run_council(thesis, ticker)
     except Exception as exc:
         logger.exception("Council evaluation failed")
-        raise HTTPException(status_code=500, detail=f"Council evaluation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Council evaluation failed: {exc}"
+        ) from exc
 
     probability: float = synthesis.get("probability", 0.5)
     signal = _engine.generate_signal(ticker, probability, thesis)

@@ -11,8 +11,7 @@ import logging
 import time
 from datetime import datetime
 
-import httpx
-
+from services.backend.http_client import make_sync_client
 from services.intelligence.crawlers.models import RawItem
 
 _FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
@@ -27,7 +26,7 @@ class FredClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
         self._last_request: float = 0.0
-        self._http = httpx.Client(timeout=_TIMEOUT)
+        self._http = make_sync_client(timeout=_TIMEOUT)
 
     def _rate_limit(self) -> None:
         elapsed = time.monotonic() - self._last_request

@@ -45,7 +45,7 @@ async def experiment_pipeline_status(experiment_id: str) -> dict[str, Any]:
     e.g. ``{"data": "completed", "features": "not_started", ...}``.
     """
     if experiment_id not in _pipeline_status:
-        raise HTTPException(status_code=404, detail="Experiment not found in pipeline")
+        return {s: "not_started" for s in _DEFAULT_STAGES}
     return _pipeline_status[experiment_id]
 
 

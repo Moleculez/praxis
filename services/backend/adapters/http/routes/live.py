@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -9,7 +10,6 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-import httpx
 from fastapi import APIRouter, HTTPException
 
 from services.backend.domain.trading_limits import SignalRecord, TradingLimits
@@ -189,7 +189,9 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
     joined = ",".join(symbols)
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={joined}"
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        from services.backend.http_client import make_async_client
+
+        async with make_async_client(timeout=5.0) as client:
             resp = await client.get(
                 url,
                 headers={"User-Agent": "Mozilla/5.0 (compatible; PraxisBot/1.0)"},
@@ -379,10 +381,75 @@ async def connection_status() -> dict:
     }
 
 
+_auto_trade_task: asyncio.Task[None] | None = None
+_auto_trade_tickers: list[str] = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA"]
+
+
+async def _auto_trade_loop() -> None:
+    """Background loop that generates AI signals periodically."""
+    while _engine.is_running:
+        for ticker in _auto_trade_tickers:
+            if not _engine.is_running:
+                break
+            try:
+                thesis = f"Evaluate {ticker} for {_engine.config.strategy_type} strategy based on current market conditions"
+                synthesis = await _run_council(thesis, ticker)
+                probability = synthesis.get("probability", 0.5)
+
+                signal = _engine.generate_signal(ticker, probability, thesis)
+                if signal.direction == "hold":
+                    continue
+
+                trader = _get_trader()
+                equity = 100_000.0
+                if trader:
+                    try:
+                        acct = trader.get_account()
+                        equity = float(acct.get("equity", 100_000))
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                position_value = _engine.size_position(signal, equity)
+                if position_value <= 0:
+                    continue
+
+                price = 100.0
+                quantity = max(1, int(position_value / price))
+                pct_of_equity = position_value / equity if equity > 0 else 1.0
+
+                if pct_of_equity < _trading_limits.auto_execute_threshold:
+                    if trader:
+                        try:
+                            trader.submit_order(ticker, signal.direction, quantity, price)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    _create_signal_record(
+                        ticker=ticker, direction=signal.direction,
+                        confidence=signal.confidence, reason=signal.reason,
+                        position_value=position_value, status="auto_executed", source="council",
+                    )
+                else:
+                    _create_signal_record(
+                        ticker=ticker, direction=signal.direction,
+                        confidence=signal.confidence, reason=signal.reason,
+                        position_value=position_value, status="pending", source="council",
+                    )
+
+                logger.info("Auto-trade signal: %s %s @ %.1f%% confidence", signal.direction, ticker, signal.confidence * 100)
+            except Exception:  # noqa: BLE001
+                logger.exception("Auto-trade signal generation failed for %s", ticker)
+
+        # Wait before next round (5 minutes between full scans)
+        for _ in range(300):
+            if not _engine.is_running:
+                return
+            await asyncio.sleep(1)
+
+
 @router.post("/auto-trade/start")
 async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
-    """Start the strategy engine with optional config overrides."""
-    global _engine  # noqa: PLW0603
+    """Start the strategy engine and background signal generation."""
+    global _engine, _auto_trade_task  # noqa: PLW0603
     config = StrategyConfig(
         strategy_type=body.get("strategy", "momentum"),
         min_confidence=body.get("min_confidence", 0.6),
@@ -390,13 +457,20 @@ async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
     )
     _engine = StrategyEngine(config)
     _engine.start()
+
+    # Start background signal generation loop
+    if _auto_trade_task is None or _auto_trade_task.done():
+        _auto_trade_task = asyncio.create_task(_auto_trade_loop())
+
     return {"status": "running", "config": asdict(config)}
 
 
 @router.post("/auto-trade/stop")
 async def stop_auto_trade() -> dict:
-    """Stop the strategy engine."""
+    """Stop the strategy engine and background loop."""
     _engine.stop()
+    if _auto_trade_task and not _auto_trade_task.done():
+        _auto_trade_task.cancel()
     return {"status": "stopped"}
 
 

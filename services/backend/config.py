@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # Broker selection
     broker: Literal["alpaca", "ibkr"] = "alpaca"
 
+    # HTTP Proxy — set to route all outbound requests through a proxy
+    # e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
+    http_proxy: str = ""
+    # Hosts that should bypass the proxy (comma-separated)
+    no_proxy: str = "localhost,127.0.0.1"
+
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",

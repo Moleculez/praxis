@@ -15,6 +15,14 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+def _make_llm_client(base_url: str) -> httpx.AsyncClient:
+    """Create an async client, bypassing proxy for localhost (Ollama)."""
+    from services.backend.http_client import make_async_client
+
+    return make_async_client(timeout=120.0, base_url="")
+
+
+
 class LLMGateway:
     """Unified gateway for routing LLM calls to any provider.
 
@@ -65,7 +73,9 @@ class LLMGateway:
     def effective_base_url(self) -> str:
         """Return the base URL for the active provider."""
         if self.provider == "ollama":
-            return f"{self.ollama_base_url}/v1"
+            # Use 127.0.0.1 instead of localhost to avoid Windows proxy issues
+            url = self.ollama_base_url.replace("localhost", "127.0.0.1")
+            return f"{url}/v1"
         if self.provider in self.PROVIDER_URLS:
             return self.PROVIDER_URLS[self.provider]
         return self.base_url
@@ -157,7 +167,7 @@ class LLMGateway:
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with _make_llm_client(self.effective_base_url) as client:
                     resp = await client.post(url, json=payload, headers=headers)
                     resp.raise_for_status()
                     data: dict[str, Any] = resp.json()
@@ -185,7 +195,7 @@ class LLMGateway:
                     last_exc = exc
                     wait = 2**attempt
                     logger.warning(
-                        "LLM gateway %s (attempt %d/3), retrying in %ds",
+                        "LLM gateway HTTP %s (attempt %d/3), retrying in %ds",
                         status,
                         attempt + 1,
                         wait,
@@ -193,8 +203,23 @@ class LLMGateway:
                     await asyncio.sleep(wait)
                     continue
                 raise
-        # All retries exhausted — re-raise the last exception.
-        raise last_exc  # type: ignore[misc]
+            except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadError) as exc:
+                last_exc = exc
+                wait = 2**attempt
+                logger.warning(
+                    "LLM gateway connection error: %s (attempt %d/3), retrying in %ds",
+                    exc,
+                    attempt + 1,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+                continue
+
+        # All retries exhausted — raise with a clear message.
+        msg = f"LLM provider '{self.provider}' unreachable after 3 attempts"
+        if self.provider == "ollama":
+            msg += f". Is Ollama running at {self.ollama_base_url}? Try: ollama serve"
+        raise ConnectionError(msg) from last_exc
 
     async def complete_text(
         self,

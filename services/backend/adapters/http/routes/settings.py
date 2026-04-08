@@ -15,7 +15,9 @@ async def get_app_settings() -> dict:
     settings = get_settings()
     return {
         "broker": {
+            "active": settings.broker,
             "alpaca_configured": bool(settings.alpaca_api_key),
+            "ibkr_configured": bool(settings.ibkr_account_id),
         },
         "llm": {
             "openrouter_configured": bool(settings.openrouter_api_key),
@@ -39,6 +41,25 @@ async def test_llm_connection() -> dict:
     """Test the currently configured LLM provider."""
     settings = get_settings()
 
+    # Detect which provider and model to use
+    if settings.use_local_llm:
+        provider = "ollama"
+        model = settings.ollama_model
+    elif settings.openrouter_api_key:
+        provider = "openrouter"
+        model = "anthropic/claude-sonnet-4.6"
+    elif settings.anthropic_api_key:
+        provider = "anthropic"
+        model = "claude-sonnet-4-6-20250514"
+    elif settings.openai_api_key:
+        provider = "openai"
+        model = "gpt-4o-mini"
+    else:
+        return {
+            "status": "not_configured",
+            "error": "No LLM API key configured. Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or USE_LOCAL_LLM=true in .env",
+        }
+
     from services.intelligence.council.providers.gateway import LLMGateway
 
     gateway = LLMGateway(
@@ -46,19 +67,26 @@ async def test_llm_connection() -> dict:
         use_local=settings.use_local_llm,
         ollama_base_url=settings.ollama_base_url,
         ollama_model=settings.ollama_model,
+        provider=provider,
         anthropic_api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
         google_api_key=settings.google_ai_api_key,
     )
     try:
         result = await gateway.complete_text(
-            model="anthropic/claude-sonnet-4.6",
+            model=model,
             messages=[{"role": "user", "content": "Say 'connected' in one word."}],
             max_tokens=10,
         )
-        return {"status": "connected", "response": result[:100]}
+        return {"status": "connected", "provider": provider, "model": model, "response": result[:100]}
+    except ConnectionError as exc:
+        return {"status": "error", "provider": provider, "error": str(exc)}
     except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+        error_msg = str(exc)
+        if "connect" in error_msg.lower() or "disconnect" in error_msg.lower():
+            if provider == "ollama":
+                error_msg += f". Is Ollama running? Try: ollama serve && ollama pull {model}"
+        return {"status": "error", "provider": provider, "error": error_msg}
 
 
 @router.get("/broker/test")

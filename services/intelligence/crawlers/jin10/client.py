@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
+from services.backend.http_client import make_sync_client
 
 from services.intelligence.crawlers.models import RawItem
 
@@ -162,7 +162,7 @@ class Jin10Client:
     ) -> Any:
         """Issue a rate-limited GET request."""
         self._rate_limit()
-        with httpx.Client(timeout=30.0) as client:
+        with make_sync_client(timeout=30.0) as client:
             response = client.get(url, params=params, headers=headers)
             response.raise_for_status()
             return response.json()

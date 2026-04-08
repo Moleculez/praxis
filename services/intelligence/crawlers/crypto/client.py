@@ -12,7 +12,7 @@ import time
 from datetime import UTC, datetime
 from typing import Literal
 
-import httpx
+from services.backend.http_client import make_sync_client
 
 from services.intelligence.crawlers.models import RawItem
 
@@ -59,7 +59,7 @@ class CryptoClient:
         url = "https://api.binance.com/api/v3/klines"
         params = {"symbol": symbol, "interval": interval, "limit": limit}
 
-        with httpx.Client(timeout=15.0) as client:
+        with make_sync_client(timeout=15.0) as client:
             resp = client.get(url, params=params)
             resp.raise_for_status()
             klines = resp.json()
@@ -93,7 +93,7 @@ class CryptoClient:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
         params = {"vs_currency": "usd", "days": min(limit, 365)}
 
-        with httpx.Client(timeout=15.0) as client:
+        with make_sync_client(timeout=15.0) as client:
             resp = client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()

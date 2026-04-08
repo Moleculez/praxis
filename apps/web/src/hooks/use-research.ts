@@ -51,6 +51,22 @@ export function useRunPipelineStage() {
   });
 }
 
+export function useRunAllStages() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (experimentId: string) =>
+      apiFetch<{ status: string; message?: string }>(
+        `/research/pipeline/${experimentId}/run-all`,
+        { method: "POST", timeout: 120_000 },
+      ),
+    onSuccess: () => {
+      toast.success("Pipeline completed");
+      qc.invalidateQueries({ queryKey: queryKeys.research.pipeline() });
+    },
+    onError: () => toast.error("Pipeline failed"),
+  });
+}
+
 export function useIngestData() {
   return useMutation({
     mutationFn: ({ source, ticker }: { source: string; ticker?: string }) =>

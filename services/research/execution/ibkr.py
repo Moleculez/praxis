@@ -10,8 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
+from services.backend.http_client import make_sync_client
 from services.research.execution.broker import Broker
 
 
@@ -28,7 +27,7 @@ class IBKRTrader(Broker):
     ) -> None:
         self.account_id = account_id
         self.gateway_url = gateway_url.rstrip("/")
-        self._client = httpx.Client(
+        self._client = make_sync_client(
             base_url=f"{self.gateway_url}/v1/api",
             timeout=15.0,
             verify=False,  # IBKR gateway uses self-signed certs

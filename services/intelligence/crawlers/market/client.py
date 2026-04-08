@@ -14,8 +14,7 @@ import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
-import httpx
-
+from services.backend.http_client import make_sync_client
 from services.intelligence.crawlers.models import RawItem
 
 _YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
@@ -29,7 +28,7 @@ class MarketClient:
 
     def __init__(self) -> None:
         self._last_request: float = 0.0
-        self._http = httpx.Client(
+        self._http = make_sync_client(
             timeout=_TIMEOUT,
             headers={"User-Agent": _USER_AGENT},
         )

@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
+from services.backend.http_client import make_sync_client
 
 from services.intelligence.crawlers.models import RawItem
 
@@ -101,7 +101,7 @@ class EdgarClient:
             "User-Agent": self.user_agent,
             "Accept": "application/json",
         }
-        with httpx.Client(timeout=30.0) as client:
+        with make_sync_client(timeout=30.0) as client:
             response = client.get(url, headers=headers)
             response.raise_for_status()
             result: dict[str, Any] = response.json()

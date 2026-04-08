@@ -5,8 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
+from services.backend.http_client import make_sync_client
 from services.research.execution.broker import Broker
 
 
@@ -28,7 +27,7 @@ class PaperTrader(Broker):
             "APCA-API-SECRET-KEY": secret_key,
             "Content-Type": "application/json",
         }
-        self._client = httpx.Client(
+        self._client = make_sync_client(
             base_url=self.base_url,
             headers=self.headers,
             timeout=15.0,

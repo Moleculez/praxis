@@ -215,6 +215,31 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
         return _quotes_cache  # return stale cache on error
 
 
+@router.get("/ohlcv/{ticker}")
+async def get_ohlcv(ticker: str, period: str = "1mo", interval: str = "1d") -> list[dict]:
+    """Return OHLCV candle data for lightweight-charts."""
+    try:
+        from services.intelligence.crawlers.market.client import MarketClient
+
+        client = MarketClient()
+        items = client.fetch_ohlcv(ticker.upper(), period=period, interval=interval)
+        return [
+            {
+                "time": item.published_at.strftime("%Y-%m-%d") if item.published_at else "",
+                "open": round(float(item.metadata.get("open", 0)), 2) if item.metadata else 0,
+                "high": round(float(item.metadata.get("high", 0)), 2) if item.metadata else 0,
+                "low": round(float(item.metadata.get("low", 0)), 2) if item.metadata else 0,
+                "close": round(float(item.metadata.get("close", 0)), 2) if item.metadata else 0,
+                "volume": int(item.metadata.get("volume", 0)) if item.metadata else 0,
+            }
+            for item in items
+            if item.published_at
+        ]
+    except Exception:  # noqa: BLE001
+        logger.warning("OHLCV fetch failed for %s", ticker)
+        return []
+
+
 @router.get("/positions")
 async def get_positions() -> list[dict]:
     """Return all open paper-trading positions."""

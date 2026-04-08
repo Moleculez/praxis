@@ -19,7 +19,9 @@ import {
   useStopAutoTrade,
   useGenerateSignal,
   useConnectionStatus,
+  useOHLCV,
 } from "@/hooks/use-live";
+import { PriceChart } from "@/components/price-chart";
 import { usePortfolio } from "@/hooks/use-portfolios";
 
 /* ------------------------------------------------------------------ */
@@ -932,6 +934,64 @@ function ConfidenceDistribution() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Price Chart                                                        */
+/* ------------------------------------------------------------------ */
+
+const TIMEFRAMES = [
+  { label: "1W", value: "5d" },
+  { label: "1M", value: "1mo" },
+  { label: "3M", value: "3mo" },
+  { label: "1Y", value: "1y" },
+] as const;
+
+function PriceChartSection() {
+  const [ticker, setTicker] = useState("SPY");
+  const [period, setPeriod] = useState("1mo");
+  const ohlcv = useOHLCV(ticker, period);
+
+  return (
+    <div className="rounded-lg border p-4 col-span-full">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold">Price Chart</h3>
+          <input
+            type="text"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            className="w-24 rounded-md border bg-background px-2 py-1 text-sm uppercase"
+            placeholder="SPY"
+          />
+        </div>
+        <div className="flex gap-1">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              key={tf.value}
+              type="button"
+              onClick={() => setPeriod(tf.value)}
+              className={cn(
+                "px-2 py-1 text-xs rounded",
+                period === tf.value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {ohlcv.isLoading ? (
+        <div className="flex items-center justify-center h-[300px]">
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      ) : (
+        <PriceChart data={ohlcv.data ?? []} height={300} />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -949,6 +1009,7 @@ export default function TradingPage() {
             <EquityCurveChart />
             <AllocationChart />
           </div>
+          <PriceChartSection />
           <PositionsTable />
           <OrderHistory />
         </div>

@@ -10,8 +10,12 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.backend.adapters.db.models import WatchlistRow
+from services.backend.adapters.http.dependencies import get_session
 from services.backend.domain.trading_limits import SignalRecord, TradingLimits
 from services.research.execution.strategy import StrategyConfig, StrategyEngine
 
@@ -170,6 +174,8 @@ async def search_symbols_enriched(q: str = "") -> list[dict]:
     return result
 
 
+_TICKER_INFO_BY_SYMBOL: dict[str, dict] = {t["symbol"]: t for t in _TICKER_INFO}
+
 _quotes_cache: dict[str, dict] = {}
 _quotes_cache_time: float = 0.0
 _QUOTES_TTL = 30.0  # seconds
@@ -213,6 +219,110 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
         return results
     except Exception:  # noqa: BLE001
         return _quotes_cache  # return stale cache on error
+
+
+@router.get("/watchlist")
+async def get_watchlist(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Return all watchlist items enriched with current prices."""
+    result = await session.execute(
+        select(WatchlistRow).order_by(WatchlistRow.created_at.desc())
+    )
+    rows = list(result.scalars().all())
+    if not rows:
+        return []
+
+    # Fetch live quotes for all watchlist tickers
+    tickers = list({r.ticker for r in rows if "/" not in r.ticker})
+    quotes = await _fetch_quotes(tickers) if tickers else {}
+
+    items: list[dict] = []
+    for row in rows:
+        quote = quotes.get(row.ticker, {})
+        current_price = quote.get("price")
+        change_pct = quote.get("change_pct")
+
+        # Calculate distance to target and trigger status
+        distance_pct: float | None = None
+        triggered = False
+        if row.target_price is not None and current_price is not None:
+            distance_pct = round(
+                ((row.target_price - current_price) / current_price) * 100, 2
+            )
+            if row.alert_type == "above" and current_price >= row.target_price:
+                triggered = True
+            elif row.alert_type == "below" and current_price <= row.target_price:
+                triggered = True
+
+        items.append({
+            "id": row.id,
+            "ticker": row.ticker,
+            "name": row.name,
+            "target_price": row.target_price,
+            "alert_type": row.alert_type,
+            "current_price": current_price,
+            "change_pct": change_pct,
+            "distance_pct": distance_pct,
+            "triggered": triggered,
+            "is_active": row.is_active,
+            "created_at": row.created_at,
+        })
+    return items
+
+
+@router.post("/watchlist")
+async def add_to_watchlist(
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Add a ticker to the watchlist."""
+    ticker = body.get("ticker", "").upper().strip()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    # Resolve name from known tickers or use provided name
+    info = _TICKER_INFO_BY_SYMBOL.get(ticker)
+    name = body.get("name", info["name"] if info else "")
+
+    row = WatchlistRow(
+        id=str(uuid.uuid4()),
+        ticker=ticker,
+        name=name,
+        target_price=body.get("target_price"),
+        alert_type=body.get("alert_type", "above"),
+        is_active=True,
+        created_at=datetime.now(UTC).isoformat(),
+    )
+    session.add(row)
+    await session.commit()
+
+    return {
+        "id": row.id,
+        "ticker": row.ticker,
+        "name": row.name,
+        "target_price": row.target_price,
+        "alert_type": row.alert_type,
+        "is_active": row.is_active,
+        "created_at": row.created_at,
+    }
+
+
+@router.delete("/watchlist/{item_id}")
+async def remove_from_watchlist(
+    item_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Remove a ticker from the watchlist."""
+    result = await session.execute(
+        select(WatchlistRow).where(WatchlistRow.id == item_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    await session.delete(row)
+    await session.commit()
+    return {"deleted": True, "id": item_id}
 
 
 @router.get("/positions")

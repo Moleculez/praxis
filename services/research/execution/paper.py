@@ -1,5 +1,5 @@
 # HARD RULE: No live trading from inside Claude Code. Paper only.
-"""Paper trading via Alpaca/IBKR. NEVER live trading."""
+"""Paper trading via Alpaca. NEVER live trading."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ from typing import Any
 
 import httpx
 
+from services.research.execution.broker import Broker
 
-class PaperTrader:
+
+class PaperTrader(Broker):
     """Paper trading execution only.
 
     Live execution requires a human-signed CLI command outside Claude Code.
@@ -105,3 +107,17 @@ class PaperTrader:
         )
         resp.raise_for_status()
         return resp.json()  # type: ignore[no-any-return]
+
+    # -- cancel ---------------------------------------------------------------
+
+    def cancel_order(self, order_id: str) -> dict[str, Any]:
+        """Cancel a single order by ID."""
+        resp = self._client.delete(f"/v2/orders/{order_id}")
+        resp.raise_for_status()
+        return resp.json()  # type: ignore[no-any-return]
+
+    def cancel_all_orders(self) -> dict[str, Any]:
+        """Cancel all open orders."""
+        resp = self._client.delete("/v2/orders")
+        resp.raise_for_status()
+        return {"status": "cancelled"}

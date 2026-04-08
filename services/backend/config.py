@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings
 
@@ -41,6 +42,13 @@ class Settings(BaseSettings):
     alpaca_secret_key: str = ""
     alpaca_base_url: str = "https://paper-api.alpaca.markets"
 
+    # Interactive Brokers (Client Portal Gateway)
+    ibkr_account_id: str = ""
+    ibkr_gateway_url: str = "https://localhost:5000"
+
+    # Broker selection
+    broker: Literal["alpaca", "ibkr"] = "alpaca"
+
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",
@@ -64,6 +72,10 @@ class Settings(BaseSettings):
     @property
     def has_mlflow(self) -> bool:
         return bool(self.mlflow_tracking_uri)
+
+    @property
+    def has_ibkr(self) -> bool:
+        return bool(self.ibkr_account_id)
 
     @property
     def is_sqlite(self) -> bool:

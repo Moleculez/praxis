@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useHypotheses, useCreateHypothesis } from "@/hooks/use-hypotheses";
 import { useExperiments, useCreateExperiment } from "@/hooks/use-experiments";
+import { useGenerateHypotheses } from "@/hooks/use-intelligence";
 import {
   usePipelineStatus,
   useRunPipelineStage,
@@ -98,9 +99,13 @@ export default function ResearchPage() {
 
   const [newClaim, setNewClaim] = useState("");
   const [newMechanism, setNewMechanism] = useState("");
+  const [aiFocusTicker, setAiFocusTicker] = useState("");
+  const [aiContext, setAiContext] = useState("");
+  const [dismissedIndices, setDismissedIndices] = useState<Set<number>>(new Set());
   const createHypothesis = useCreateHypothesis();
   const createExperiment = useCreateExperiment();
   const startAutoTrade = useStartAutoTrade();
+  const generateAI = useGenerateHypotheses();
 
   const selectedSourceAvailable =
     ingestSources.find((s) => s.key === source)?.available ?? false;
@@ -188,6 +193,93 @@ export default function ResearchPage() {
             {createHypothesis.isPending ? "Creating..." : "Create Hypothesis"}
           </button>
         </form>
+
+        {/* AI Hypothesis Generation */}
+        <div className="mt-6 rounded-lg border border-dashed p-4">
+          <h3 className="text-sm font-semibold mb-3">Generate with AI</h3>
+          <div className="flex flex-wrap items-end gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Focus Ticker (optional)
+              </label>
+              <input
+                type="text"
+                value={aiFocusTicker}
+                onChange={(e) => setAiFocusTicker(e.target.value.toUpperCase())}
+                placeholder="e.g. AAPL"
+                className="w-28 rounded-md border bg-background px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Context (optional)
+              </label>
+              <input
+                type="text"
+                value={aiContext}
+                onChange={(e) => setAiContext(e.target.value)}
+                placeholder="e.g. Focus on semiconductor supply chain risks"
+                className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+              />
+            </div>
+            <button
+              onClick={() => {
+                setDismissedIndices(new Set());
+                generateAI.mutate({
+                  count: 3,
+                  ticker: aiFocusTicker || undefined,
+                  context: aiContext || undefined,
+                });
+              }}
+              disabled={generateAI.isPending}
+              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {generateAI.isPending ? "AI is analyzing markets..." : "Generate with AI"}
+            </button>
+          </div>
+
+          {generateAI.data?.hypotheses && generateAI.data.hypotheses.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Market snapshot: {generateAI.data.market_context.split("\n").join(" | ")}
+              </p>
+              {generateAI.data.hypotheses.map((h, i) =>
+                dismissedIndices.has(i) ? null : (
+                  <div key={i} className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded">
+                        {h.ticker}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            createHypothesis.mutate(
+                              { claim: h.claim, mechanism: h.mechanism },
+                            );
+                          }}
+                          disabled={createHypothesis.isPending}
+                          className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={() =>
+                            setDismissedIndices((prev) => new Set([...prev, i]))
+                          }
+                          className="rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium">{h.claim}</p>
+                    <p className="text-xs text-muted-foreground">{h.mechanism}</p>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Hypotheses list */}
         <div className="mt-6">

@@ -115,13 +115,15 @@ class PaperTrader(Broker):
     # -- cancel ---------------------------------------------------------------
 
     def cancel_order(self, order_id: str) -> dict[str, Any]:
-        """Cancel a single order by ID."""
+        """Cancel a single order by ID via Alpaca API."""
         resp = self._client.delete(f"/v2/orders/{order_id}")
+        if resp.status_code == 204:
+            return {"status": "cancelled", "order_id": order_id}
         resp.raise_for_status()
         return resp.json()  # type: ignore[no-any-return]
 
     def cancel_all_orders(self) -> dict[str, Any]:
-        """Cancel all open orders."""
+        """Cancel all open orders via Alpaca API."""
         resp = self._client.delete("/v2/orders")
         resp.raise_for_status()
-        return {"status": "cancelled"}
+        return {"status": "all_cancelled"}

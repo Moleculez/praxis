@@ -80,6 +80,32 @@ export function useSymbolSearchEnriched(query: string) {
   });
 }
 
+export function useCancelOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) =>
+      apiFetch(`/live/orders/${orderId}/cancel`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Order cancelled");
+      qc.invalidateQueries({ queryKey: ["live", "orders"] });
+    },
+    onError: () => toast.error("Cancel failed"),
+  });
+}
+
+export function useCancelAllOrders() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/live/orders/cancel-all", { method: "POST" }),
+    onSuccess: () => {
+      toast.success("All orders cancelled");
+      qc.invalidateQueries({ queryKey: ["live", "orders"] });
+    },
+    onError: () => toast.error("Cancel all failed"),
+  });
+}
+
 export function useSubmitOrder() {
   const qc = useQueryClient();
   return useMutation({

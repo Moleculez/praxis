@@ -7,31 +7,40 @@ export interface ApiError {
 
 export async function apiFetch<T>(
   path: string,
-  init?: RequestInit,
+  init?: RequestInit & { timeout?: number },
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const timeout = init?.timeout ?? 10_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
 
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
+  try {
+    const { timeout: _timeout, ...fetchInit } = init ?? {};
+    const response = await fetch(url, {
+      ...fetchInit,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
 
-  if (!response.ok) {
-    const body = await response.text();
-    const error: ApiError = {
-      status: response.status,
-      message: body || response.statusText,
-    };
-    throw error;
+    if (!response.ok) {
+      const body = await response.text();
+      const error: ApiError = {
+        status: response.status,
+        message: body || response.statusText,
+      };
+      throw error;
+    }
+
+    // 204 No Content — return undefined (used by DELETE endpoints)
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
   }
-
-  // 204 No Content — return undefined (used by DELETE endpoints)
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }

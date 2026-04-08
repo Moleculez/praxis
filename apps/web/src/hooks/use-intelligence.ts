@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
 import { apiFetch } from "@/lib/api";
-import type { IntelBrief, CrawlerSource } from "@/types";
+import type { IntelBrief, CrawlerSource, CouncilSynthesis } from "@/types";
 
 export function useIntelBriefs() {
   return useQuery({
@@ -16,5 +17,35 @@ export function useCrawlerSources() {
   return useQuery({
     queryKey: queryKeys.intelligence.sources,
     queryFn: () => apiFetch<CrawlerSource[]>("/intelligence/sources"),
+  });
+}
+
+export function useEvaluateThesis() {
+  return useMutation({
+    mutationFn: (data: { thesis: string; ticker?: string; context?: string }) =>
+      apiFetch<CouncilSynthesis>("/intelligence/evaluate-thesis", {
+        method: "POST",
+        body: JSON.stringify(data),
+        timeout: 120_000,
+      }),
+    onSuccess: () => toast.success("Council evaluation complete"),
+    onError: () => toast.error("Council evaluation failed"),
+  });
+}
+
+export function useGenerateTradeIdea() {
+  return useMutation({
+    mutationFn: (data: {
+      thesis: string;
+      ticker: string;
+      council_synthesis?: CouncilSynthesis;
+    }) =>
+      apiFetch("/intelligence/trade-idea", {
+        method: "POST",
+        body: JSON.stringify(data),
+        timeout: 60_000,
+      }),
+    onSuccess: () => toast.success("Trade idea generated"),
+    onError: () => toast.error("Trade idea generation failed"),
   });
 }

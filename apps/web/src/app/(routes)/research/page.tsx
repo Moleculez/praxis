@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useHypotheses } from "@/hooks/use-hypotheses";
+import { useHypotheses, useCreateHypothesis } from "@/hooks/use-hypotheses";
 import { useExperiments } from "@/hooks/use-experiments";
 import {
   usePipelineStatus,
@@ -74,6 +74,10 @@ export default function ResearchPage() {
   const [ticker, setTicker] = useState("SPY");
   const [source, setSource] = useState<string>(ingestSources[0]);
   const ingest = useIngestData();
+
+  const [newClaim, setNewClaim] = useState("");
+  const [newMechanism, setNewMechanism] = useState("");
+  const createHypothesis = useCreateHypothesis();
 
   const pipelineStatus = selectedExpId
     ? (pipelineData as Record<string, string> | undefined)
@@ -181,6 +185,59 @@ export default function ResearchPage() {
             })}
           </div>
         )}
+      </section>
+
+      {/* Create Hypothesis */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">Create Hypothesis</h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newClaim.trim() || !newMechanism.trim()) return;
+            createHypothesis.mutate(
+              { claim: newClaim.trim(), mechanism: newMechanism.trim() },
+              {
+                onSuccess: () => {
+                  setNewClaim("");
+                  setNewMechanism("");
+                },
+              },
+            );
+          }}
+          className="rounded-lg border p-4 space-y-4"
+        >
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Claim
+            </label>
+            <input
+              type="text"
+              value={newClaim}
+              onChange={(e) => setNewClaim(e.target.value)}
+              placeholder="e.g. Momentum factor decays faster in high-vol regimes"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Causal Mechanism
+            </label>
+            <textarea
+              value={newMechanism}
+              onChange={(e) => setNewMechanism(e.target.value)}
+              rows={3}
+              placeholder="Describe the causal mechanism behind this claim..."
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={createHypothesis.isPending || !newClaim.trim() || !newMechanism.trim()}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {createHypothesis.isPending ? "Creating..." : "Create Hypothesis"}
+          </button>
+        </form>
       </section>
 
       {/* Hypotheses */}

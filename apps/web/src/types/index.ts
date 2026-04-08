@@ -117,3 +117,25 @@ export interface CrawlerSource {
   description: string;
   last_updated?: string;
 }
+
+// --- Council (Cogito intelligence subsystem) --------------------------
+
+export interface CouncilAssessment {
+  persona_id: string;
+  probability: number;
+  confidence: string;
+  assessment: string;
+  mechanism: string;
+  falsification_test: string;
+}
+
+export interface CouncilSynthesis {
+  consensus: string;
+  probability: number;
+  probability_range: [number, number];
+  spread: number;
+  n_personas: number;
+  disagreements: string[];
+  assessments: CouncilAssessment[];
+  summary: string;
+}

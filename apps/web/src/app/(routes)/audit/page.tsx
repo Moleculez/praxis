@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { useAuditDecisions, useAuditIncidents } from "@/hooks/use-audit";
 import { Markdown } from "@/components/markdown";
@@ -8,6 +8,16 @@ import { Markdown } from "@/components/markdown";
 type Tab = "decisions" | "incidents";
 
 const PAGE_SIZE = 25;
+
+function defaultFrom(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function defaultTo(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function EmptyState({ message }: { message: string }) {
   return (
@@ -51,9 +61,39 @@ function Pagination({
   );
 }
 
-function DecisionsTable() {
+type Filters = {
+  search: string;
+  from: string;
+  to: string;
+};
+
+function matchesDateRange(ts: string | undefined, from: string, to: string): boolean {
+  if (!ts) return true;
+  const dateStr = ts.slice(0, 10);
+  if (from && dateStr < from) return false;
+  if (to && dateStr > to) return false;
+  return true;
+}
+
+function DecisionsTable({ filters }: { filters: Filters }) {
   const { data, isLoading } = useAuditDecisions();
   const [page, setPage] = useState(0);
+
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = filters.search.toLowerCase();
+    return [...data]
+      .filter((d) => {
+        if (q) {
+          const haystack = `${d.request ?? ""} ${d.lead ?? ""} ${d.reason ?? ""}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return matchesDateRange(d.ts, filters.from, filters.to);
+      })
+      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  }, [data, filters.search, filters.from, filters.to]);
+
+  useEffect(() => setPage(0), [filters.search, filters.from, filters.to]);
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading decisions...</p>;
@@ -63,13 +103,13 @@ function DecisionsTable() {
     return <EmptyState message="No decisions recorded yet." />;
   }
 
-  const sorted = useMemo(
-    () => [...data].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()),
-    [data],
-  );
+  if (filtered.length === 0) {
+    return <EmptyState message="No decisions match the current filters." />;
+  }
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   return (
     <>
@@ -104,9 +144,27 @@ function DecisionsTable() {
   );
 }
 
-function IncidentsTable() {
+function IncidentsTable({ filters }: { filters: Filters }) {
   const { data, isLoading } = useAuditIncidents();
   const [page, setPage] = useState(0);
+
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = filters.search.toLowerCase();
+    return [...data]
+      .filter((inc) => {
+        if (q) {
+          const haystack = `${inc.agent ?? ""} ${inc.error ?? ""} ${inc.context ?? ""}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return matchesDateRange(inc.ts, filters.from, filters.to);
+      })
+      .sort(
+        (a, b) => new Date(b.ts ?? 0).getTime() - new Date(a.ts ?? 0).getTime(),
+      );
+  }, [data, filters.search, filters.from, filters.to]);
+
+  useEffect(() => setPage(0), [filters.search, filters.from, filters.to]);
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading incidents...</p>;
@@ -116,16 +174,13 @@ function IncidentsTable() {
     return <EmptyState message="No incidents recorded yet." />;
   }
 
-  const sorted = useMemo(
-    () =>
-      [...data].sort(
-        (a, b) => new Date(b.ts ?? 0).getTime() - new Date(a.ts ?? 0).getTime(),
-      ),
-    [data],
-  );
+  if (filtered.length === 0) {
+    return <EmptyState message="No incidents match the current filters." />;
+  }
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   return (
     <>
@@ -172,6 +227,20 @@ function IncidentsTable() {
 
 export default function AuditPage() {
   const [tab, setTab] = useState<Tab>("decisions");
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
+
+  const filters: Filters = useMemo(
+    () => ({ search, from, to }),
+    [search, from, to],
+  );
+
+  function clearFilters() {
+    setSearch("");
+    setFrom(defaultFrom());
+    setTo(defaultTo());
+  }
 
   return (
     <div className="space-y-6">
@@ -180,6 +249,44 @@ export default function AuditPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Append-only audit log. Entries cannot be modified or deleted.
         </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Search</label>
+          <input
+            type="text"
+            placeholder="Filter by keyword..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-md border bg-background px-3 py-1.5 text-sm w-64"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">From</label>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">To</label>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          />
+        </div>
+        <button
+          onClick={clearFilters}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          Clear
+        </button>
       </div>
 
       <div className="flex gap-2">
@@ -205,7 +312,11 @@ export default function AuditPage() {
         </button>
       </div>
 
-      {tab === "decisions" ? <DecisionsTable /> : <IncidentsTable />}
+      {tab === "decisions" ? (
+        <DecisionsTable filters={filters} />
+      ) : (
+        <IncidentsTable filters={filters} />
+      )}
     </div>
   );
 }

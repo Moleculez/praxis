@@ -7,12 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Label,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Area,
-  CartesianGrid,
 } from "recharts";
 import { usePortfolio, useRiskMetrics } from "@/hooks/use-portfolios";
 import { cn } from "@/lib/utils";
@@ -104,11 +98,6 @@ function riskColor(metric: string, value: number | null): string {
       return "";
   }
 }
-
-const mockEquity = Array.from({ length: 30 }, (_, i) => ({
-  day: i + 1,
-  value: 100000 + Math.random() * 2000 - 1000,
-}));
 
 export default function PortfoliosPage() {
   const portfolio = usePortfolio();
@@ -257,52 +246,14 @@ export default function PortfoliosPage() {
 
       {/* Equity curve (placeholder) */}
       <div className="rounded-lg border p-4">
-        <h2 className="mb-4 text-lg font-semibold">Equity Curve</h2>
-        <p className="mb-2 text-xs text-muted-foreground">Simulated 30-day placeholder</p>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={mockEquity}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis
-              dataKey="day"
-              tick={{ fontSize: 12 }}
-              className="fill-muted-foreground"
-            />
-            <YAxis
-              domain={["dataMin - 500", "dataMax + 500"]}
-              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-              tick={{ fontSize: 12 }}
-              className="fill-muted-foreground"
-            />
-            <Tooltip
-              formatter={(value: number) => formatUsd(value)}
-              labelFormatter={(label: number) => `Day ${label}`}
-              contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "0.5rem",
-              }}
-            />
-            <defs>
-              <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="none"
-              fill="url(#equityFill)"
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <h2 className="text-lg font-semibold mb-4">Equity Curve</h2>
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-40 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+          </svg>
+          <p className="text-sm">Equity curve available after running backtests</p>
+          <p className="text-xs mt-1">Run a pipeline to generate historical performance data</p>
+        </div>
       </div>
 
       {/* Risk metrics */}

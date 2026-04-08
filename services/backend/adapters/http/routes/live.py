@@ -32,6 +32,7 @@ _MAX_SIGNAL_RECORDS = 10_000
 
 # In-memory state for paper trading (resets on restart).
 _MAX_ORDERS = 10_000
+_CANCELLABLE_STATUSES = ("pending", "new", "accepted")
 _orders: list[dict] = []
 _positions: dict[str, dict] = {}
 
@@ -357,6 +358,58 @@ async def get_summary() -> dict:
     }
 
 
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str) -> dict:
+    """Cancel a specific order."""
+    trader = _get_trader()
+    if trader is None:
+        # In mock mode, just update in-memory
+        for order in _orders:
+            if order.get("id") == order_id and order.get("status") in _CANCELLABLE_STATUSES:
+                order["status"] = "cancelled"
+                return {"status": "cancelled", "order_id": order_id}
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order {order_id} not found or not cancellable",
+        )
+
+    try:
+        result = trader.cancel_order(order_id)
+        # Update in-memory state
+        for order in _orders:
+            if order.get("id") == order_id:
+                order["status"] = "cancelled"
+                break
+        return {"status": "cancelled", "order_id": order_id, "broker_result": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Cancel failed: {e}"
+        ) from e
+
+
+@router.post("/orders/cancel-all")
+async def cancel_all_orders() -> dict:
+    """Cancel all open orders."""
+    trader = _get_trader()
+    cancelled = 0
+
+    if trader is not None:
+        try:
+            trader.cancel_all_orders()
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Cancel all failed: {e}"
+            ) from e
+
+    # Update in-memory
+    for order in _orders:
+        if order.get("status") in _CANCELLABLE_STATUSES:
+            order["status"] = "cancelled"
+            cancelled += 1
+
+    return {"status": "all_cancelled", "cancelled_count": cancelled}
+
+
 @router.get("/connection-status")
 async def connection_status() -> dict:
     """Check whether Alpaca paper-trading API is reachable."""
@@ -380,13 +433,13 @@ async def connection_status() -> dict:
 
 
 _auto_trade_task: asyncio.Task[None] | None = None
-_auto_trade_tickers: list[str] = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA"]
 
 
 async def _auto_trade_loop() -> None:
     """Background loop that generates AI signals periodically."""
     while _engine.is_running:
-        for ticker in _auto_trade_tickers:
+        tickers = [t.strip() for t in _trading_limits.tickers.split(",") if t.strip()]
+        for ticker in tickers:
             if not _engine.is_running:
                 break
             try:
@@ -411,7 +464,12 @@ async def _auto_trade_loop() -> None:
                 if position_value <= 0:
                     continue
 
-                price = 100.0
+                quotes = await _fetch_quotes([ticker])
+                quote = quotes.get(ticker, {})
+                price = quote.get("price", 0)
+                if price <= 0:
+                    continue  # Skip if can't get real price
+
                 quantity = max(1, int(position_value / price))
                 pct_of_equity = position_value / equity if equity > 0 else 1.0
 
@@ -440,8 +498,8 @@ async def _auto_trade_loop() -> None:
             except Exception:  # noqa: BLE001
                 logger.exception("Auto-trade signal generation failed for %s", ticker)
 
-        # Wait before next round (5 minutes between full scans)
-        for _ in range(300):
+        # Wait before next round using configured scan interval
+        for _ in range(_trading_limits.scan_interval_sec):
             if not _engine.is_running:
                 return
             await asyncio.sleep(1)

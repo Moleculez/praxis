@@ -19,6 +19,7 @@ import {
   useStopAutoTrade,
   useGenerateSignal,
   useConnectionStatus,
+  useCancelOrder,
 } from "@/hooks/use-live";
 import { usePortfolio } from "@/hooks/use-portfolios";
 
@@ -370,10 +371,11 @@ function PositionsTable() {
 /*  Order History Table                                                */
 /* ------------------------------------------------------------------ */
 
-const orderColumns = ["Time", "Ticker", "Side", "Qty", "Price", "Status"];
+const orderColumns = ["Time", "Ticker", "Side", "Qty", "Price", "Status", ""];
 
 function OrderHistory() {
   const orders = useOrders();
+  const cancelOrder = useCancelOrder();
 
   return (
     <div className="rounded-lg border p-4">
@@ -414,6 +416,18 @@ function OrderHistory() {
                   <td className="py-2">{order.quantity}</td>
                   <td className="py-2">{formatCurrency(order.price)}</td>
                   <td className="py-2">{order.status}</td>
+                  <td className="py-2">
+                    {["pending", "new", "accepted"].includes(order.status) && (
+                      <button
+                        type="button"
+                        onClick={() => cancelOrder.mutate(order.id)}
+                        disabled={cancelOrder.isPending}
+                        className="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

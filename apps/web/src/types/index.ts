@@ -118,6 +118,32 @@ export interface CrawlerSource {
   last_updated?: string;
 }
 
+// --- Trade Idea (discretionary PM review queue) -----------------------
+
+export type TradeIdeaStatus =
+  | "new"
+  | "reviewing"
+  | "approved"
+  | "rejected"
+  | "expired";
+
+export interface TradeIdea {
+  id: string;
+  ticker: string;
+  direction: "long" | "short";
+  thesis: string;
+  entry_zone: string;
+  stop_loss: string;
+  target: string;
+  conviction: string;
+  pre_mortem: string;
+  kill_criteria: string;
+  status: TradeIdeaStatus;
+  notes: string;
+  created_at: string;
+  reviewed_at: string | null;
+}
+
 // --- Council (Cogito intelligence subsystem) --------------------------
 
 export interface CouncilAssessment {

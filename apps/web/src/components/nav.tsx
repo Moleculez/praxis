@@ -8,6 +8,7 @@ import {
   TrendingUp,
   FlaskConical,
   Brain,
+  Lightbulb,
   Shield,
   Settings,
   StopCircle,
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { href: "/trading", label: "Trading", icon: TrendingUp },
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/intelligence", label: "Intelligence", icon: Brain },
+  { href: "/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/audit", label: "Audit", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

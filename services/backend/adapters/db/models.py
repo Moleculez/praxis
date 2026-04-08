@@ -28,3 +28,22 @@ class HypothesisRow(Base):
     mechanism: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="proposed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TradeIdeaRow(Base):
+    __tablename__ = "trade_ideas"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(10))
+    direction: Mapped[str] = mapped_column(String(10))  # long/short
+    thesis: Mapped[str] = mapped_column(String(2000))
+    entry_zone: Mapped[str] = mapped_column(String(200), default="")
+    stop_loss: Mapped[str] = mapped_column(String(200), default="")
+    target: Mapped[str] = mapped_column(String(200), default="")
+    conviction: Mapped[str] = mapped_column(String(20), default="medium")
+    pre_mortem: Mapped[str] = mapped_column(String(2000), default="")
+    kill_criteria: Mapped[str] = mapped_column(String(2000), default="")
+    status: Mapped[str] = mapped_column(String(20), default="new")
+    notes: Mapped[str] = mapped_column(String(2000), default="")
+    created_at: Mapped[str] = mapped_column(String(30))
+    reviewed_at: Mapped[str | None] = mapped_column(String(30), nullable=True)

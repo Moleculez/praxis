@@ -1,10 +1,17 @@
 """Intelligence / Cogito subsystem routes."""
 
+import uuid
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.backend.adapters.db.models import TradeIdeaRow
+from services.backend.adapters.http.dependencies import get_session
 
 router = APIRouter()
 
@@ -165,6 +172,128 @@ def _run_crawler(source: str, query: str, limit: int) -> list[dict]:
         return [asdict(item) for item in items]
 
     raise ValueError(f"Unknown source: {source}. Available: market, fred, edgar, crypto, jin10, news")
+
+
+# ------------------------------------------------------------------
+# Trade idea review queue (persistent DB-backed)
+# ------------------------------------------------------------------
+
+_VALID_IDEA_STATUSES = frozenset({"new", "reviewing", "approved", "rejected", "expired"})
+
+
+def _row_to_dict(row: TradeIdeaRow) -> dict:
+    """Convert a TradeIdeaRow to a serializable dict."""
+    return {
+        "id": row.id,
+        "ticker": row.ticker,
+        "direction": row.direction,
+        "thesis": row.thesis,
+        "entry_zone": row.entry_zone,
+        "stop_loss": row.stop_loss,
+        "target": row.target,
+        "conviction": row.conviction,
+        "pre_mortem": row.pre_mortem,
+        "kill_criteria": row.kill_criteria,
+        "status": row.status,
+        "notes": row.notes,
+        "created_at": row.created_at,
+        "reviewed_at": row.reviewed_at,
+    }
+
+
+class SaveTradeIdeaRequest(BaseModel):
+    ticker: str
+    direction: str
+    thesis: str
+    entry_zone: str = ""
+    stop_loss: str = ""
+    target: str = ""
+    conviction: str = "medium"
+    pre_mortem: str = ""
+    kill_criteria: str = ""
+
+
+class UpdateTradeIdeaRequest(BaseModel):
+    status: str | None = None
+    notes: str | None = None
+
+
+@router.get("/ideas")
+async def list_trade_ideas(
+    status: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """List all trade ideas, optionally filtered by status."""
+    stmt = select(TradeIdeaRow).order_by(TradeIdeaRow.created_at.desc())
+    if status:
+        stmt = stmt.where(TradeIdeaRow.status == status)
+    result = await session.execute(stmt)
+    rows = result.scalars().all()
+    return [_row_to_dict(r) for r in rows]
+
+
+@router.post("/ideas", status_code=201)
+async def save_trade_idea(
+    body: SaveTradeIdeaRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Save a new trade idea to the review queue."""
+    row = TradeIdeaRow(
+        id=str(uuid.uuid4()),
+        ticker=body.ticker,
+        direction=body.direction,
+        thesis=body.thesis,
+        entry_zone=body.entry_zone,
+        stop_loss=body.stop_loss,
+        target=body.target,
+        conviction=body.conviction,
+        pre_mortem=body.pre_mortem,
+        kill_criteria=body.kill_criteria,
+        status="new",
+        notes="",
+        created_at=datetime.now(UTC).isoformat(),
+        reviewed_at=None,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return _row_to_dict(row)
+
+
+@router.patch("/ideas/{idea_id}")
+async def update_trade_idea(
+    idea_id: str,
+    body: UpdateTradeIdeaRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update a trade idea's status and/or notes."""
+    result = await session.execute(
+        select(TradeIdeaRow).where(TradeIdeaRow.id == idea_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Trade idea not found")
+
+    if body.status is not None:
+        if body.status not in _VALID_IDEA_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: {', '.join(sorted(_VALID_IDEA_STATUSES))}",
+            )
+        row.status = body.status
+        if body.status in {"approved", "rejected"}:
+            row.reviewed_at = datetime.now(UTC).isoformat()
+    if body.notes is not None:
+        row.notes = body.notes
+
+    await session.commit()
+    await session.refresh(row)
+    return _row_to_dict(row)
+
+
+# ------------------------------------------------------------------
+# Trade idea generation (LLM-powered, non-persistent)
+# ------------------------------------------------------------------
 
 
 class TradeIdeaRequest(BaseModel):

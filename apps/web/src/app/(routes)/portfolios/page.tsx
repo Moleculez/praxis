@@ -59,9 +59,9 @@ function LoadingSkeleton() {
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-      <p className="font-medium">Failed to load portfolio data</p>
-      <p className="text-sm">{message}</p>
+    <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/50 dark:border-red-900 p-4">
+      <p className="text-sm font-medium text-red-600 dark:text-red-400">Failed to load portfolio data</p>
+      <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
     </div>
   );
 }
@@ -110,7 +110,7 @@ export default function PortfoliosPage() {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Portfolios</h1>
-        <ErrorBanner message={err?.message ?? "Unknown error"} />
+        <ErrorBanner message={err?.message ?? "Check that the API server is running."} />
       </div>
     );
   }
@@ -135,7 +135,29 @@ export default function PortfoliosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Portfolios</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">Portfolios</h1>
+        {data.source && (
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-xs font-medium",
+              data.source === "alpaca"
+                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+            )}
+          >
+            {data.source === "alpaca" ? "Alpaca" : "Mock"}
+          </span>
+        )}
+      </div>
+
+      {data.source === "mock" && data.positions.length > 0 && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/50 dark:border-yellow-900 p-4">
+          <p className="text-sm text-yellow-700 dark:text-yellow-400">
+            Using in-memory data. Connect Alpaca for persistent positions.
+          </p>
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -145,9 +167,13 @@ export default function PortfoliosPage() {
       </div>
 
       {/* Positions table */}
-      {data.positions.length > 0 && (
-        <div className="rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Positions</h2>
+      <div className="rounded-lg border p-4">
+        <h2 className="mb-4 text-lg font-semibold">Positions</h2>
+        {data.positions.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No positions yet. Submit orders on the Live page to build your portfolio.
+          </p>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -161,7 +187,7 @@ export default function PortfoliosPage() {
               </thead>
               <tbody>
                 {data.positions.map((pos) => {
-                  const pnl = (pos.current_price - pos.avg_price) * pos.quantity;
+                  const pnl = pos.unrealized_pnl ?? (pos.current_price - pos.avg_price) * pos.quantity;
                   const rowColor = pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
                   return (
                     <tr key={pos.ticker} className="border-b last:border-0">
@@ -176,8 +202,8 @@ export default function PortfoliosPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Allocation: pie chart + table side by side */}
       <div className="rounded-lg border p-4">
@@ -260,7 +286,11 @@ export default function PortfoliosPage() {
       <div className="rounded-lg border p-4">
         <h2 className="mb-4 text-lg font-semibold">Risk Metrics</h2>
         {risk.isLoading && <p className="text-sm text-muted-foreground">Loading risk metrics...</p>}
-        {risk.isError && <p className="text-sm text-red-600 dark:text-red-400">Failed to load risk metrics.</p>}
+        {risk.isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/50 dark:border-red-900 p-4">
+            <p className="text-sm text-red-600 dark:text-red-400">Failed to load risk metrics. Check that the API server is running.</p>
+          </div>
+        )}
         {riskRows.length > 0 && (
           <table className="w-full text-sm">
             <thead>

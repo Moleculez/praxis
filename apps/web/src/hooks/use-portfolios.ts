@@ -9,6 +9,7 @@ export interface Position {
   quantity: number;
   avg_price: number;
   current_price: number;
+  unrealized_pnl?: number;
 }
 
 export interface AllocationSlice {
@@ -21,6 +22,7 @@ export interface PortfolioData {
   total_value: number;
   cash: number;
   daily_pnl: number;
+  source?: "alpaca" | "mock";
   positions: Position[];
   allocation: AllocationSlice[];
 }

@@ -21,7 +21,12 @@ const pipelineStages = [
 
 type StageKey = (typeof pipelineStages)[number]["key"];
 
-const ingestSources = ["yahoo", "fred", "edgar", "polygon"] as const;
+const ingestSources = [
+  { key: "yahoo", label: "Yahoo Finance", available: true },
+  { key: "fred", label: "FRED", available: false },
+  { key: "edgar", label: "EDGAR", available: false },
+  { key: "polygon", label: "Polygon", available: false },
+] as const;
 
 const hypothesisStatusColors: Record<string, string> = {
   proposed: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -65,19 +70,22 @@ function canRunStage(
 
 export default function ResearchPage() {
   const { data: hypotheses, isLoading: hypoLoading, error: hypoError } = useHypotheses();
-  const { data: experiments } = useExperiments();
+  const { data: experiments, isError: expError } = useExperiments();
 
   const [selectedExpId, setSelectedExpId] = useState<string>("");
   const { data: pipelineData } = usePipelineStatus(selectedExpId || undefined);
   const runStage = useRunPipelineStage();
 
   const [ticker, setTicker] = useState("SPY");
-  const [source, setSource] = useState<string>(ingestSources[0]);
+  const [source, setSource] = useState<string>(ingestSources[0].key);
   const ingest = useIngestData();
 
   const [newClaim, setNewClaim] = useState("");
   const [newMechanism, setNewMechanism] = useState("");
   const createHypothesis = useCreateHypothesis();
+
+  const selectedSourceAvailable =
+    ingestSources.find((s) => s.key === source)?.available ?? false;
 
   const pipelineStatus = selectedExpId
     ? (pipelineData as Record<string, string> | undefined)
@@ -99,8 +107,8 @@ export default function ResearchPage() {
               className="rounded-md border bg-background px-3 py-1.5 text-sm"
             >
               {ingestSources.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+                <option key={s.key} value={s.key} disabled={!s.available}>
+                  {s.label} {!s.available ? "(coming soon)" : ""}
                 </option>
               ))}
             </select>
@@ -117,13 +125,24 @@ export default function ResearchPage() {
           </div>
           <button
             onClick={() => ingest.mutate({ source, ticker })}
-            disabled={ingest.isPending}
+            disabled={ingest.isPending || !selectedSourceAvailable}
             className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {ingest.isPending ? "Ingesting..." : "Ingest"}
           </button>
         </div>
+        {!selectedSourceAvailable && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            This data source is not yet implemented.
+          </p>
+        )}
       </section>
+
+      {expError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/50 dark:border-red-900 p-4">
+          <p className="text-sm text-red-600 dark:text-red-400">Failed to load experiments. Check that the API server is running.</p>
+        </div>
+      )}
 
       {/* Pipeline Status */}
       <section>

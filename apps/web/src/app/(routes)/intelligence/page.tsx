@@ -75,12 +75,21 @@ function BrierBar({ weight }: { weight: number }) {
   );
 }
 
-function StatusDot({ status }: { status: "implemented" | "stub" }) {
-  const color =
-    status === "implemented"
-      ? "bg-green-500 dark:bg-green-400"
-      : "bg-gray-400 dark:bg-gray-600";
-  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
+function StatusBadge({ status }: { status: "implemented" | "stub" }) {
+  if (status === "implemented") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 text-xs font-medium">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 dark:bg-green-400" />
+        Active
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 text-xs font-medium">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-500 dark:bg-yellow-400" />
+      Planned
+    </span>
+  );
 }
 
 function InfoCard({
@@ -197,6 +206,12 @@ function ThesisEvaluator() {
         <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
           <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent mr-2 align-middle" />
           Council evaluating... this may take 30-60 seconds
+        </div>
+      )}
+
+      {evaluate.isError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/50 dark:border-red-900 p-4">
+          <p className="text-sm text-red-600 dark:text-red-400">Failed to evaluate thesis. Check that the API server is running.</p>
         </div>
       )}
 
@@ -426,16 +441,23 @@ export default function IntelligencePage() {
               {sources.data.map((s) => (
                 <div
                   key={s.name}
-                  className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
+                  className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3"
                 >
-                  <StatusDot status={s.status} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{s.name}</p>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{s.name}</p>
+                      <StatusBadge status={s.status} />
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {s.description}
                     </p>
+                    {s.status === "stub" && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                        Coming soon — not yet available
+                      </p>
+                    )}
                     {s.last_updated && (
-                      <p className="mt-0.5 text-xs text-muted-foreground/70">
+                      <p className="text-xs text-muted-foreground/70">
                         Updated {formatLastUpdated(s.last_updated)}
                       </p>
                     )}

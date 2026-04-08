@@ -7,7 +7,7 @@ import { Nav } from "@/components/nav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Praxis — Quant Research Platform",
+  title: "Praxis — AI Trading Platform",
   description:
     "Multi-agent quantitative research and paper-trading platform with Cogito intelligence subsystem.",
 };

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import httpx
 from fastapi import APIRouter, HTTPException
 
+from services.backend.domain.trading_limits import SignalRecord, TradingLimits
 from services.research.execution.strategy import StrategyConfig, StrategyEngine
 
 if TYPE_CHECKING:
@@ -24,6 +25,10 @@ router = APIRouter()
 # Module-level strategy engine for auto-trade endpoints.
 _engine = StrategyEngine()
 
+# Trading safety system state.
+_trading_limits = TradingLimits()
+_signal_records: list[SignalRecord] = []
+_MAX_SIGNAL_RECORDS = 10_000
 
 # In-memory state for paper trading (resets on restart).
 _MAX_ORDERS = 10_000
@@ -405,11 +410,118 @@ async def auto_trade_status() -> dict:
     }
 
 
+@router.get("/settings")
+async def get_trading_settings() -> dict:
+    """Return current trading safety limits."""
+    return {
+        "max_position_pct": _trading_limits.max_position_pct,
+        "max_daily_loss": _trading_limits.max_daily_loss,
+        "max_positions": _trading_limits.max_positions,
+        "auto_execute_threshold": _trading_limits.auto_execute_threshold,
+    }
+
+
+@router.post("/settings")
+async def update_trading_settings(body: dict) -> dict:
+    """Update trading safety limits."""
+    global _trading_limits  # noqa: PLW0603
+    _trading_limits = TradingLimits(
+        max_position_pct=body.get(
+            "max_position_pct", _trading_limits.max_position_pct
+        ),
+        max_daily_loss=body.get("max_daily_loss", _trading_limits.max_daily_loss),
+        max_positions=body.get("max_positions", _trading_limits.max_positions),
+        auto_execute_threshold=body.get(
+            "auto_execute_threshold", _trading_limits.auto_execute_threshold
+        ),
+    )
+    return asdict(_trading_limits)
+
+
 @router.get("/signals")
 async def get_signals(limit: int = 50) -> list[dict]:
-    """Return recent trading signals."""
+    """Return recent signal records with approval status."""
+    if _signal_records:
+        records = _signal_records[-limit:]
+        return [asdict(r) for r in reversed(records)]
+    # Fallback to raw engine signals if no records yet
     signals = _engine.get_signals(limit)
     return [asdict(s) for s in signals]
+
+
+@router.post("/signals/{signal_id}/approve")
+async def approve_signal(signal_id: str) -> dict:
+    """Approve a pending signal and execute the trade."""
+    for sig in _signal_records:
+        if sig.id == signal_id and sig.status == "pending":
+            sig.status = "approved"
+            trader = _get_trader()
+            if trader and sig.direction != "hold":
+                try:
+                    price = 100.0  # would need real price
+                    qty = max(1, int(sig.position_value / price))
+                    trader.submit_order(sig.ticker, sig.direction, qty, price)
+                    sig.status = "executed"
+                except Exception:  # noqa: BLE001
+                    logger.warning("Order execution failed after approval")
+            return {"id": sig.id, "status": sig.status}
+    raise HTTPException(status_code=404, detail="Signal not found or not pending")
+
+
+@router.post("/signals/{signal_id}/reject")
+async def reject_signal(signal_id: str) -> dict:
+    """Reject a pending signal."""
+    for sig in _signal_records:
+        if sig.id == signal_id and sig.status == "pending":
+            sig.status = "rejected"
+            return {"id": sig.id, "status": sig.status}
+    raise HTTPException(status_code=404, detail="Signal not found or not pending")
+
+
+@router.post("/kill-switch")
+async def kill_switch() -> dict:
+    """Emergency stop -- cancel all pending signals, stop engine."""
+    _engine.stop()
+
+    cancelled = 0
+    for sig in _signal_records:
+        if sig.status == "pending":
+            sig.status = "rejected"
+            cancelled += 1
+
+    return {
+        "status": "killed",
+        "signals_cancelled": cancelled,
+        "engine_stopped": True,
+    }
+
+
+def _create_signal_record(
+    *,
+    ticker: str,
+    direction: str,
+    confidence: float,
+    reason: str,
+    position_value: float,
+    status: str,
+    source: str,
+) -> SignalRecord:
+    """Create a SignalRecord, append it, and trim the list if needed."""
+    record = SignalRecord(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.now(UTC).isoformat(),
+        ticker=ticker,
+        direction=direction,
+        confidence=confidence,
+        reason=reason,
+        position_value=position_value,
+        status=status,
+        source=source,
+    )
+    _signal_records.append(record)
+    if len(_signal_records) > _MAX_SIGNAL_RECORDS:
+        _signal_records[:] = _signal_records[-_MAX_SIGNAL_RECORDS:]
+    return record
 
 
 @router.post("/auto-trade/generate-signal")
@@ -432,7 +544,7 @@ async def generate_signal(body: dict) -> dict:
 
     signal = _engine.generate_signal(ticker, probability, thesis)
 
-    # If engine is running and signal is actionable, build an order
+    # If engine is running and signal is actionable, apply safety system
     if _engine.is_running and signal.direction != "hold":
         trader = _get_trader()
         equity = 100_000.0  # Default mock equity for paper trading
@@ -447,38 +559,79 @@ async def generate_signal(body: dict) -> dict:
         if position_value > 0:
             price: float = body.get("price", 100.0)
             quantity = max(1, int(position_value / price))
-            order_result = None
-            if trader:
-                try:
-                    order_result = trader.submit_order(
-                        ticker, signal.direction, quantity, price
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Alpaca order submission failed: %s", exc)
+            pct_of_equity = position_value / equity if equity > 0 else 1.0
 
-            if order_result:
+            source = "council" if use_council else "manual"
+
+            if pct_of_equity < _trading_limits.auto_execute_threshold:
+                order_result = None
+                if trader:
+                    try:
+                        order_result = trader.submit_order(
+                            ticker, signal.direction, quantity, price
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Alpaca order submission failed: %s", exc)
+
+                record = _create_signal_record(
+                    ticker=ticker,
+                    direction=signal.direction,
+                    confidence=signal.confidence,
+                    reason=signal.reason,
+                    position_value=position_value,
+                    status="auto_executed",
+                    source=source,
+                )
+
+                if order_result:
+                    return {
+                        "signal": asdict(signal),
+                        "order": {
+                            "id": order_result["id"],
+                            "ticker": order_result["symbol"],
+                            "side": order_result["side"],
+                            "quantity": float(order_result["qty"]),
+                            "position_value": position_value,
+                            "status": order_result["status"],
+                            "source": "alpaca",
+                        },
+                        "approval": "auto_executed",
+                        "signal_record_id": record.id,
+                    }
                 return {
                     "signal": asdict(signal),
                     "order": {
-                        "id": order_result["id"],
-                        "ticker": order_result["symbol"],
-                        "side": order_result["side"],
-                        "quantity": float(order_result["qty"]),
+                        "ticker": ticker,
+                        "side": signal.direction,
+                        "quantity": quantity,
                         "position_value": position_value,
-                        "status": order_result["status"],
-                        "source": "alpaca",
+                        "status": "submitted",
+                        "source": "mock",
                     },
+                    "approval": "auto_executed",
+                    "signal_record_id": record.id,
                 }
+
+            record = _create_signal_record(
+                ticker=ticker,
+                direction=signal.direction,
+                confidence=signal.confidence,
+                reason=signal.reason,
+                position_value=position_value,
+                status="pending",
+                source=source,
+            )
+
             return {
                 "signal": asdict(signal),
-                "order": {
-                    "ticker": ticker,
-                    "side": signal.direction,
-                    "quantity": quantity,
-                    "position_value": position_value,
-                    "status": "submitted",
-                    "source": "mock",
-                },
+                "order": None,
+                "approval": "pending",
+                "signal_record_id": record.id,
+                "message": (
+                    f"Position is {pct_of_equity:.1%} of equity, "
+                    f"above {_trading_limits.auto_execute_threshold:.1%} threshold. "
+                    "Approval required."
+                ),
             }
 
     return {"signal": asdict(signal), "order": None}

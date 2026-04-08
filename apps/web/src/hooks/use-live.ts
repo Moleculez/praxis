@@ -198,3 +198,21 @@ export function useConnectionStatus() {
     retry: 1,
   });
 }
+
+export interface MarketOverviewItem {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change_pct: number | null;
+  history: { date: string; close: number }[];
+}
+
+export function useMarketOverview() {
+  return useQuery({
+    queryKey: ["live", "market-overview"],
+    queryFn: () => apiFetch<MarketOverviewItem[]>("/live/market-overview"),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+    retry: 1,
+  });
+}

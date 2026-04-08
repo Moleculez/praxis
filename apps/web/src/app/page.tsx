@@ -27,8 +27,9 @@ import {
   useAutoTradeStatus,
   useSignals,
   useConnectionStatus,
-  useSymbolSearchEnriched,
+  useMarketOverview,
 } from "@/hooks/use-live";
+import type { MarketOverviewItem } from "@/hooks/use-live";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -53,10 +54,20 @@ function useHealth() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Market overview constants                                          */
+/*  Market hours helper                                                */
 /* ------------------------------------------------------------------ */
 
-const MARKET_SYMBOLS = ["SPY", "QQQ", "NVDA"] as const;
+/** Return true if NYSE is currently open (Mon-Fri 9:30-16:00 ET). */
+function isMarketOpen(): boolean {
+  const now = new Date();
+  const et = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" }),
+  );
+  const day = et.getDay();
+  if (day === 0 || day === 6) return false;
+  const minutes = et.getHours() * 60 + et.getMinutes();
+  return minutes >= 570 && minutes < 960; // 9:30=570, 16:00=960
+}
 
 /* ------------------------------------------------------------------ */
 /*  Shared components                                                  */
@@ -326,46 +337,92 @@ function SignalCharts() {
 /*  Market Overview                                                    */
 /* ------------------------------------------------------------------ */
 
-function MarketSymbolCard({ symbol }: { symbol: string }) {
-  const query = useSymbolSearchEnriched(symbol);
-  const item = query.data?.find((m) => m.symbol === symbol);
+function MarketSymbolCard({ item }: { item: MarketOverviewItem }) {
+  const positive = (item.change_pct ?? 0) >= 0;
+  const strokeColor = positive ? "#22c55e" : "#ef4444";
 
   return (
     <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{symbol}</p>
-      {query.isLoading ? (
-        <Skeleton className="mt-1 h-7 w-20" />
-      ) : (
-        <>
-          <p className="text-lg font-bold">
-            ${item?.price?.toFixed(2) ?? "--"}
+      <div className="flex items-center justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground truncate">
+            {item.symbol}
           </p>
-          {item?.change_pct != null && (
+          <p className="text-lg font-bold">
+            {item.price != null ? `$${item.price.toFixed(2)}` : "$--"}
+          </p>
+          {item.change_pct != null && (
             <p
               className={cn(
                 "text-xs font-medium",
-                item.change_pct >= 0 ? "text-green-600" : "text-red-600",
+                positive ? "text-green-600" : "text-red-600",
               )}
             >
-              {item.change_pct >= 0 ? "+" : ""}
+              {positive ? "+" : ""}
               {item.change_pct.toFixed(2)}%
             </p>
           )}
-        </>
-      )}
+        </div>
+        {item.history.length > 1 && (
+          <div className="w-[72px] h-[40px] shrink-0">
+            <ResponsiveContainer width="100%" height={40}>
+              <LineChart data={item.history}>
+                <Line
+                  type="monotone"
+                  dataKey="close"
+                  stroke={strokeColor}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+function MarketHoursIndicator() {
+  const open = isMarketOpen();
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span
+        className={cn(
+          "inline-block h-2 w-2 rounded-full",
+          open ? "bg-green-500" : "bg-gray-400",
+        )}
+      />
+      {open ? "Market Open" : "Market Closed"}
+    </div>
+  );
+}
+
+const OVERVIEW_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6";
+
 function MarketOverview() {
+  const { data, isLoading } = useMarketOverview();
+
   return (
     <section>
-      <h2 className="text-lg font-semibold mb-3">Market Overview</h2>
-      <div className="grid grid-cols-3 gap-3">
-        {MARKET_SYMBOLS.map((sym) => (
-          <MarketSymbolCard key={sym} symbol={sym} />
-        ))}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold">Market Overview</h2>
+        <MarketHoursIndicator />
       </div>
+      {isLoading ? (
+        <div className={OVERVIEW_GRID}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[76px] w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className={OVERVIEW_GRID}>
+          {(data ?? []).map((item) => (
+            <MarketSymbolCard key={item.symbol} item={item} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

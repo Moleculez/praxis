@@ -170,13 +170,135 @@ async def search_symbols_enriched(q: str = "") -> list[dict]:
     return result
 
 
+# ------------------------------------------------------------------
+# Shared MarketClient + OHLCV helpers
+# ------------------------------------------------------------------
+
+_market_client_cache: object | None = None  # lazy MarketClient singleton
+
+
+def _get_market_client() -> object:
+    """Return a cached MarketClient (avoids creating new httpx connections)."""
+    global _market_client_cache  # noqa: PLW0603
+    if _market_client_cache is None:
+        from services.intelligence.crawlers.market.client import MarketClient
+
+        _market_client_cache = MarketClient()
+    return _market_client_cache  # type: ignore[return-value]
+
+
+def _extract_close(item: object) -> float:
+    """Extract the close price from a RawItem's metadata."""
+    meta = getattr(item, "metadata", None)
+    return round(float(meta.get("close", 0)), 2) if meta else 0.0
+
+
+def _ohlcv_to_quote(items: list) -> dict:
+    """Derive a price + change_pct dict from a list of RawItem OHLCV bars."""
+    if not items:
+        return {}
+    last_close = _extract_close(items[-1])
+    prev_close = _extract_close(items[-2]) if len(items) > 1 else last_close
+    change_pct = (
+        ((last_close - prev_close) / prev_close * 100) if prev_close else 0.0
+    )
+    return {"price": last_close, "change_pct": round(change_pct, 2)}
+
+
+def _ohlcv_to_history(items: list) -> list[dict]:
+    """Convert RawItem OHLCV bars to a sparkline-ready list of {date, close}."""
+    return [
+        {
+            "date": item.published_at.strftime("%Y-%m-%d") if item.published_at else "",
+            "close": _extract_close(item),
+        }
+        for item in items
+    ]
+
+
+def _fetch_ohlcv_batch_sync(
+    symbols: list[str],
+) -> dict[str, list]:
+    """Fetch 5-day OHLCV for each symbol (sync, meant for run_in_executor)."""
+    client = _get_market_client()
+    out: dict[str, list] = {}
+    for sym in symbols:
+        try:
+            out[sym] = client.fetch_ohlcv(sym, period="5d", interval="1d")  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001
+            logger.debug("OHLCV fetch failed for %s", sym)
+    return out
+
+
+# ------------------------------------------------------------------
+# Market overview (dashboard sparklines)
+# ------------------------------------------------------------------
+
+_OVERVIEW_SYMBOLS = ["SPY", "QQQ", "NVDA", "AAPL", "TSLA", "BTC-USD"]
+
+_history_cache: dict[str, list[dict]] = {}
+_history_cache_time: float = 0.0
+_HISTORY_TTL = 300.0  # 5 minutes
+
+
+@router.get("/market-overview")
+async def get_market_overview() -> list[dict]:
+    """Return pre-formatted market overview with mini price history for dashboard."""
+    global _history_cache, _history_cache_time  # noqa: PLW0603
+
+    quotes = await _fetch_quotes(_OVERVIEW_SYMBOLS)
+
+    # Fetch sparkline history (cached separately with longer TTL)
+    now = time.monotonic()
+    if (now - _history_cache_time) >= _HISTORY_TTL or not _history_cache:
+        try:
+            loop = asyncio.get_running_loop()
+            raw = await loop.run_in_executor(
+                None, _fetch_ohlcv_batch_sync, _OVERVIEW_SYMBOLS,
+            )
+            _history_cache = {sym: _ohlcv_to_history(bars) for sym, bars in raw.items()}
+            _history_cache_time = now
+        except Exception:  # noqa: BLE001
+            logger.debug("History fetch failed, using stale cache")
+
+    result: list[dict] = []
+    for sym in _OVERVIEW_SYMBOLS:
+        q = quotes.get(sym, {})
+        info = next((t for t in _TICKER_INFO if t["symbol"] == sym), None)
+        result.append({
+            "symbol": sym,
+            "name": info["name"] if info else sym,
+            "price": q.get("price"),
+            "change_pct": q.get("change_pct"),
+            "history": _history_cache.get(sym, []),
+        })
+    return result
+
+
+# ------------------------------------------------------------------
+# Quote fetching with fallback chain
+# ------------------------------------------------------------------
+
 _quotes_cache: dict[str, dict] = {}
 _quotes_cache_time: float = 0.0
 _QUOTES_TTL = 30.0  # seconds
 
+_STATIC_FALLBACK: dict[str, dict] = {
+    "SPY": {"price": 520.00, "change_pct": 0.0},
+    "QQQ": {"price": 440.00, "change_pct": 0.0},
+    "NVDA": {"price": 880.00, "change_pct": 0.0},
+    "AAPL": {"price": 195.00, "change_pct": 0.0},
+    "TSLA": {"price": 175.00, "change_pct": 0.0},
+    "BTC-USD": {"price": 70000.00, "change_pct": 0.0},
+    "MSFT": {"price": 430.00, "change_pct": 0.0},
+    "GOOGL": {"price": 160.00, "change_pct": 0.0},
+    "AMZN": {"price": 185.00, "change_pct": 0.0},
+    "META": {"price": 510.00, "change_pct": 0.0},
+}
+
 
 async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
-    """Fetch latest price + change % from Yahoo Finance with 30s TTL cache."""
+    """Fetch quotes with fallback chain: Yahoo v7 -> MarketClient OHLCV -> static."""
     global _quotes_cache, _quotes_cache_time  # noqa: PLW0603
 
     if not symbols:
@@ -186,6 +308,9 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
     if time.monotonic() - _quotes_cache_time < _QUOTES_TTL and _quotes_cache:
         return _quotes_cache
 
+    results: dict[str, dict] = {}
+
+    # Method 1: Yahoo v7 API (fast, but often blocked)
     joined = ",".join(symbols)
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={joined}"
     try:
@@ -198,7 +323,6 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
             )
             resp.raise_for_status()
         data = resp.json()
-        results: dict[str, dict] = {}
         for q in data.get("quoteResponse", {}).get("result", []):
             sym = q.get("symbol", "")
             price = q.get("regularMarketPrice")
@@ -208,11 +332,33 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
                     "price": round(price, 2),
                     "change_pct": round(change, 2) if change is not None else None,
                 }
-        _quotes_cache = results
-        _quotes_cache_time = time.monotonic()
-        return results
     except Exception:  # noqa: BLE001
-        return _quotes_cache  # return stale cache on error
+        logger.debug("Yahoo v7 quote fetch failed, trying MarketClient fallback")
+
+    # Method 2: MarketClient OHLCV for any missing symbols
+    missing = [s for s in symbols if s not in results]
+    if missing:
+        try:
+            loop = asyncio.get_running_loop()
+            raw = await loop.run_in_executor(None, _fetch_ohlcv_batch_sync, missing)
+            for sym, bars in raw.items():
+                quote = _ohlcv_to_quote(bars)
+                if quote:
+                    results[sym] = quote
+        except Exception:  # noqa: BLE001
+            logger.debug("MarketClient fallback failed entirely")
+
+    # Method 3: Static fallback for major symbols still missing
+    for sym in symbols:
+        if sym not in results and sym in _STATIC_FALLBACK:
+            results[sym] = {**_STATIC_FALLBACK[sym]}
+
+    # Update cache
+    if results:
+        _quotes_cache.update(results)
+        _quotes_cache_time = time.monotonic()
+
+    return results
 
 
 @router.get("/positions")

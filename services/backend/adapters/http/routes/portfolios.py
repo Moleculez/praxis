@@ -156,7 +156,11 @@ async def get_portfolio() -> dict:
 async def get_risk_metrics() -> dict:
     """Compute basic risk metrics from positions and order history."""
     try:
-        from services.backend.adapters.http.routes.live import _orders, _positions
+        from services.backend.adapters.http.routes.live import (
+            _compute_realized_trades,
+            _orders,
+            _positions,
+        )
 
         if not _positions and not _orders:
             return {**_NULL_RISK}
@@ -189,20 +193,16 @@ async def get_risk_metrics() -> dict:
 
         max_dd: float | None = None
         if _orders:
-            cumulative = 0.0
-            peak = 0.0
-            max_drawdown = 0.0
-            for order in _orders:
-                price = order.get("price", 0)
-                qty = order.get("quantity", 0)
-                side = order.get("side", "buy")
-                if side == "sell":
-                    cumulative += price * qty
-                else:
-                    cumulative -= price * qty
-                peak = max(peak, cumulative)
-                max_drawdown = max(max_drawdown, peak - cumulative)
-            max_dd = round(max_drawdown, 2) if max_drawdown > 0 else None
+            trades = _compute_realized_trades(_orders)
+            if trades:
+                cum = 0.0
+                peak = 0.0
+                dd = 0.0
+                for t in trades:
+                    cum += t["pnl"]
+                    peak = max(peak, cum)
+                    dd = max(dd, peak - cum)
+                max_dd = round(dd, 2) if dd > 0 else None
 
         sharpe: float | None = None
         if annualized_vol and annualized_vol > 0:

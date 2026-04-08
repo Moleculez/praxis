@@ -53,6 +53,27 @@ export function useTradingSummary() {
   });
 }
 
+export interface CandleData {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export function useOHLCV(ticker: string, period = "1mo", interval = "1d") {
+  return useQuery({
+    queryKey: ["live", "ohlcv", ticker, period, interval],
+    queryFn: () =>
+      apiFetch<CandleData[]>(
+        `/live/ohlcv/${encodeURIComponent(ticker)}?period=${period}&interval=${interval}`,
+      ),
+    enabled: ticker.length > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useSymbolSearch(query: string) {
   return useQuery({
     queryKey: ["live", "symbols", query],

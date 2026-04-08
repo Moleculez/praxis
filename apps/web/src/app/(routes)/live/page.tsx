@@ -198,8 +198,8 @@ function AutoTradePanel() {
               </tr>
             </thead>
             <tbody>
-              {signals.data.map((sig) => (
-                <tr key={sig.id} className="border-b last:border-0">
+              {signals.data.map((sig, idx) => (
+                <tr key={sig.id ?? idx} className="border-b last:border-0">
                   <td className="py-2 text-muted-foreground" title={new Date(sig.timestamp).toLocaleString()}>
                     {formatRelativeTime(sig.timestamp)}
                   </td>

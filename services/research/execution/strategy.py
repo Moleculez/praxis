@@ -5,7 +5,8 @@ HARD RULE: Paper trading only. Auto-trade requires human approval toggle.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -18,6 +19,7 @@ class Signal:
     confidence: float  # 0.0-1.0
     reason: str
     source: str = "council"
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclass

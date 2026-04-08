@@ -70,20 +70,24 @@ async def get_latest_crawl(source: str) -> dict:
     return {"source": source, "count": len(_crawl_cache[source]), "items": _crawl_cache[source]}
 
 
-@router.post("/analyze")
-async def analyze_text(body: AnalyzeRequest) -> dict:
-    """Send text to LLM gateway for analysis."""
+def _create_gateway():  # noqa: ANN202
+    """Build an LLMGateway from application settings."""
     from services.backend.config import get_settings
     from services.intelligence.council.providers.gateway import LLMGateway
 
     settings = get_settings()
-    gateway = LLMGateway(
+    return LLMGateway(
         api_key=settings.openrouter_api_key,
         use_local=settings.use_local_llm,
         ollama_base_url=settings.ollama_base_url,
         ollama_model=settings.ollama_model,
     )
 
+
+@router.post("/analyze")
+async def analyze_text(body: AnalyzeRequest) -> dict:
+    """Send text to LLM gateway for analysis."""
+    gateway = _create_gateway()
     try:
         result = await gateway.complete(
             model=body.model,
@@ -92,6 +96,24 @@ async def analyze_text(body: AnalyzeRequest) -> dict:
         return {"response": result["choices"][0]["message"]["content"], "model": body.model}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM analysis failed: {e}") from e
+
+
+class EvaluateThesisRequest(BaseModel):
+    thesis: str
+    ticker: str = ""
+    context: str = ""
+
+
+@router.post("/evaluate-thesis")
+async def evaluate_thesis(body: EvaluateThesisRequest) -> dict:
+    """Run the PhD council on a thesis and return weighted synthesis."""
+    from services.intelligence.council.runner import CouncilRunner
+
+    runner = CouncilRunner(_create_gateway())
+    try:
+        return await runner.evaluate_thesis(body.thesis, body.ticker, body.context)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Council evaluation failed: {e}") from e
 
 
 def _run_crawler(source: str, query: str, limit: int) -> list[dict]:

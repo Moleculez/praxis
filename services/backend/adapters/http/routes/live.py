@@ -1,12 +1,17 @@
 """Paper-trading live execution routes."""
 
+from __future__ import annotations
+
+import logging
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from services.research.execution.strategy import StrategyConfig, StrategyEngine
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -140,10 +145,22 @@ async def get_signals(limit: int = 50) -> list[dict]:
 
 @router.post("/auto-trade/generate-signal")
 async def generate_signal(body: dict) -> dict:
-    """Generate a trading signal from council probability."""
+    """Generate a trading signal from council probability.
+
+    When ``use_council`` is true and no ``probability`` is provided, the PhD
+    council is invoked first to derive a consensus probability.
+    """
     ticker: str = body.get("ticker", "SPY")
-    probability: float = body.get("probability", 0.5)
     thesis: str = body.get("thesis", "")
+    probability: float | None = body.get("probability")
+    use_council: bool = body.get("use_council", False)
+
+    if probability is None and use_council and thesis:
+        synthesis = await _run_council(thesis, ticker)
+        probability = synthesis.get("probability", 0.5)
+    elif probability is None:
+        probability = 0.5
+
     signal = _engine.generate_signal(ticker, probability, thesis)
 
     # If engine is running and signal is actionable, build an order
@@ -182,3 +199,63 @@ async def generate_signal(body: dict) -> dict:
             }
 
     return {"signal": asdict(signal), "order": None}
+
+
+# ------------------------------------------------------------------
+# Council-integrated composite endpoint
+# ------------------------------------------------------------------
+
+
+async def _run_council(thesis: str, ticker: str = "", context: str = "") -> dict:
+    """Instantiate gateway + runner and evaluate a thesis."""
+    from services.backend.adapters.http.routes.intelligence import _create_gateway
+    from services.intelligence.council.runner import CouncilRunner
+
+    runner = CouncilRunner(_create_gateway())
+    return await runner.evaluate_thesis(thesis, ticker, context)
+
+
+@router.post("/auto-trade/evaluate")
+async def evaluate_and_signal(body: dict) -> dict:
+    """Evaluate thesis with council, generate signal, optionally create order.
+
+    Body fields:
+        thesis (str): Investment thesis text (required).
+        ticker (str): Ticker symbol (default "SPY").
+        price (float): Current price for position sizing (default 100.0).
+    """
+    thesis: str = body.get("thesis", "")
+    ticker: str = body.get("ticker", "SPY")
+    price: float = body.get("price", 100.0)
+
+    if not thesis:
+        raise HTTPException(status_code=400, detail="thesis is required")
+
+    try:
+        synthesis = await _run_council(thesis, ticker)
+    except Exception as exc:
+        logger.exception("Council evaluation failed")
+        raise HTTPException(status_code=500, detail=f"Council evaluation failed: {exc}") from exc
+
+    probability: float = synthesis.get("probability", 0.5)
+    signal = _engine.generate_signal(ticker, probability, thesis)
+
+    order: dict | None = None
+    if _engine.is_running and signal.direction != "hold":
+        equity = 100_000.0
+        position_value = _engine.size_position(signal, equity)
+        if position_value > 0:
+            quantity = max(1, int(position_value / price))
+            order = {
+                "ticker": ticker,
+                "side": signal.direction,
+                "quantity": quantity,
+                "position_value": position_value,
+                "status": "submitted",
+            }
+
+    return {
+        "council": synthesis,
+        "signal": asdict(signal),
+        "order": order,
+    }

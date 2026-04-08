@@ -19,6 +19,7 @@ export interface Order {
   price: number;
   status: string;
   timestamp: string;
+  notes?: string;
 }
 
 export interface TradingSummary {
@@ -98,6 +99,22 @@ export function useSubmitOrder() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["live"] });
     },
+  });
+}
+
+export function useUpdateOrderNotes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, notes }: { orderId: string; notes: string }) =>
+      apiFetch(`/live/orders/${orderId}/notes`, {
+        method: "PATCH",
+        body: JSON.stringify({ notes }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["live", "orders"] });
+      toast.success("Note saved");
+    },
+    onError: () => toast.error("Failed to save note"),
   });
 }
 

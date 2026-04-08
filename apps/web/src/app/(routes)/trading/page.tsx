@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -13,6 +14,7 @@ import {
   useOrders,
   useTradingSummary,
   useSubmitOrder,
+  useUpdateOrderNotes,
   useAutoTradeStatus,
   useSignals,
   useStartAutoTrade,
@@ -370,10 +372,30 @@ function PositionsTable() {
 /*  Order History Table                                                */
 /* ------------------------------------------------------------------ */
 
-const orderColumns = ["Time", "Ticker", "Side", "Qty", "Price", "Status"];
+const orderColumns = ["Time", "Ticker", "Side", "Qty", "Price", "Status", ""];
 
 function OrderHistory() {
   const orders = useOrders();
+  const updateNotes = useUpdateOrderNotes();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftNotes, setDraftNotes] = useState("");
+
+  function openEditor(orderId: string, existingNotes: string) {
+    setEditingId(orderId);
+    setDraftNotes(existingNotes);
+  }
+
+  function closeEditor() {
+    setEditingId(null);
+    setDraftNotes("");
+  }
+
+  function saveNotes(orderId: string) {
+    updateNotes.mutate(
+      { orderId, notes: draftNotes },
+      { onSuccess: () => closeEditor() },
+    );
+  }
 
   return (
     <div className="rounded-lg border p-4">
@@ -399,23 +421,79 @@ function OrderHistory() {
               </tr>
             </thead>
             <tbody>
-              {orders.data.map((order) => (
-                <tr key={order.id} className="border-b last:border-0">
-                  <td
-                    className="py-2 text-muted-foreground"
-                    title={new Date(order.timestamp).toLocaleString()}
-                  >
-                    {formatRelativeTime(order.timestamp)}
-                  </td>
-                  <td className="py-2 font-medium">{order.ticker}</td>
-                  <td className={cn("py-2 font-medium", sideColor(order.side))}>
-                    {order.side.toUpperCase()}
-                  </td>
-                  <td className="py-2">{order.quantity}</td>
-                  <td className="py-2">{formatCurrency(order.price)}</td>
-                  <td className="py-2">{order.status}</td>
-                </tr>
-              ))}
+              {orders.data.map((order) => {
+                const hasNotes = !!order.notes;
+                const isEditing = editingId === order.id;
+                return (
+                  <tr key={order.id} className="border-b last:border-0 align-top">
+                    <td
+                      className="py-2 text-muted-foreground"
+                      title={new Date(order.timestamp).toLocaleString()}
+                    >
+                      {formatRelativeTime(order.timestamp)}
+                    </td>
+                    <td className="py-2 font-medium">{order.ticker}</td>
+                    <td className={cn("py-2 font-medium", sideColor(order.side))}>
+                      {order.side.toUpperCase()}
+                    </td>
+                    <td className="py-2">{order.quantity}</td>
+                    <td className="py-2">{formatCurrency(order.price)}</td>
+                    <td className="py-2">{order.status}</td>
+                    <td className="py-2">
+                      {isEditing ? (
+                        <div className="flex flex-col gap-1.5 min-w-[200px]">
+                          <textarea
+                            rows={2}
+                            value={draftNotes}
+                            onChange={(e) => setDraftNotes(e.target.value)}
+                            placeholder="Add trade notes..."
+                            className="w-full rounded-md border bg-background px-2 py-1 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => saveNotes(order.id)}
+                              disabled={updateNotes.isPending}
+                              className="h-6 rounded bg-primary px-2 text-[10px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {updateNotes.isPending ? "..." : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={closeEditor}
+                              className="h-6 rounded border px-2 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditor(order.id, order.notes ?? "")}
+                            className={cn(
+                              "shrink-0 rounded p-1 transition-colors hover:bg-muted",
+                              hasNotes
+                                ? "text-primary"
+                                : "text-muted-foreground/50 hover:text-muted-foreground",
+                            )}
+                            title={hasNotes ? "Edit note" : "Add note"}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          {hasNotes && (
+                            <span className="text-xs text-muted-foreground line-clamp-2">
+                              {order.notes}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

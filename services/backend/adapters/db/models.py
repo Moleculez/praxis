@@ -28,3 +28,20 @@ class HypothesisRow(Base):
     mechanism: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="proposed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class OrderRow(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    side: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    quantity: Mapped[str] = mapped_column(String(20), nullable=False, default="0")
+    price: Mapped[str] = mapped_column(String(20), nullable=False, default="0")
+    order_type: Mapped[str] = mapped_column(String(10), nullable=False, default="market")
+    time_in_force: Mapped[str] = mapped_column(String(10), nullable=False, default="day")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    timestamp: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    fill_price: Mapped[str] = mapped_column(String(20), nullable=False, default="0")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="mock")
+    notes: Mapped[str] = mapped_column(String(2000), nullable=False, default="")

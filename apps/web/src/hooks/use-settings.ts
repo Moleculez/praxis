@@ -20,6 +20,17 @@ export interface AppSettings {
     ollama_model: string;
   };
   database: string;
+  proxy: {
+    http_proxy: boolean;
+    no_proxy: string;
+  };
+}
+
+export interface SystemInfo {
+  python_version: string;
+  platform: string;
+  database: string;
+  debug: boolean;
 }
 
 export interface TradingLimits {
@@ -38,6 +49,13 @@ export function useAppSettings() {
   return useQuery({
     queryKey: ["settings"],
     queryFn: () => apiFetch<AppSettings>("/settings"),
+  });
+}
+
+export function useSystemInfo() {
+  return useQuery({
+    queryKey: ["settings", "system"],
+    queryFn: () => apiFetch<SystemInfo>("/settings/system"),
   });
 }
 

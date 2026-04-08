@@ -5,23 +5,17 @@ import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-interface PipelineStatus {
-  data: string;
-  features: string;
-  labels: string;
-  model: string;
-  backtest: string;
-  portfolio: string;
-}
-
 export function usePipelineStatus(experimentId?: string) {
   return useQuery({
     queryKey: queryKeys.research.pipeline(experimentId),
     queryFn: () =>
-      experimentId
-        ? apiFetch<PipelineStatus>(`/research/pipeline/${experimentId}`)
-        : apiFetch<Record<string, PipelineStatus>>("/research/pipeline"),
+      apiFetch<Record<string, string>>(
+        experimentId
+          ? `/research/pipeline/${experimentId}`
+          : "/research/pipeline",
+      ),
     refetchInterval: 5000,
+    enabled: !!experimentId,
   });
 }
 

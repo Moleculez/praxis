@@ -25,8 +25,8 @@ export function TickerAutocomplete({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const listRef = useRef<HTMLUListElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const blurRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const blurRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Sync external value changes into input
   useEffect(() => {

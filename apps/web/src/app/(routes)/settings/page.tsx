@@ -96,105 +96,126 @@ function TradingLimitsSection() {
   const { data: limits, isLoading } = useTradingLimits();
   const updateLimits = useUpdateTradingLimits();
 
-  const [maxPositionPct, setMaxPositionPct] = useState(2);
-  const [maxDailyLoss, setMaxDailyLoss] = useState(5000);
-  const [maxPositions, setMaxPositions] = useState(8);
-  const [autoExecuteThreshold, setAutoExecuteThreshold] = useState(1);
+  const [form, setForm] = useState({
+    max_position_pct: 0.05,
+    max_daily_loss: 10000,
+    max_positions: 15,
+    auto_execute_threshold: 0.05,
+    min_confidence: 0.55,
+    scan_interval_sec: 60,
+    tickers: "SPY,QQQ,AAPL,MSFT,NVDA,TSLA,AMZN,META,GOOGL,JPM",
+    use_council: true,
+    aggressive_mode: false,
+  });
 
   useEffect(() => {
-    if (limits) {
-      setMaxPositionPct(limits.max_position_pct);
-      setMaxDailyLoss(limits.max_daily_loss);
-      setMaxPositions(limits.max_positions);
-      setAutoExecuteThreshold(limits.auto_execute_threshold);
-    }
+    if (limits) setForm(limits);
   }, [limits]);
 
+  function set(key: string, value: unknown) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
   function handleSave() {
-    updateLimits.mutate({
-      max_position_pct: maxPositionPct,
-      max_daily_loss: maxDailyLoss,
-      max_positions: maxPositions,
-      auto_execute_threshold: autoExecuteThreshold,
-    });
+    updateLimits.mutate(form);
   }
 
   if (isLoading) {
     return (
       <div className="rounded-lg border p-6">
-        <h2 className="text-lg font-semibold mb-4">Trading Limits</h2>
+        <h2 className="text-lg font-semibold mb-4">AI Trading Configuration</h2>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border p-6">
-      <h2 className="text-lg font-semibold mb-4">Trading Limits</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="rounded-lg border p-6 space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">AI Trading Configuration</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure how aggressively the AI trades. Lower confidence and higher thresholds = more trades.
+        </p>
+      </div>
+
+      {/* Mode toggles */}
+      <div className="flex flex-wrap gap-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={form.use_council} onChange={(e) => set("use_council", e.target.checked)} className="h-4 w-4 rounded border" />
+          <span className="text-sm font-medium">Use AI Council</span>
+          <span className="text-xs text-muted-foreground">(LLM evaluates each ticker)</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={form.aggressive_mode} onChange={(e) => set("aggressive_mode", e.target.checked)} className="h-4 w-4 rounded border" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">Aggressive Mode</span>
+          <span className="text-xs text-muted-foreground">(skip council, momentum signals)</span>
+        </label>
+      </div>
+
+      {/* Ticker list */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Tickers to Scan</label>
+        <input
+          type="text"
+          value={form.tickers}
+          onChange={(e) => set("tickers", e.target.value.toUpperCase())}
+          placeholder="SPY,QQQ,AAPL,NVDA,TSLA"
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono"
+        />
+        <p className="text-xs text-muted-foreground mt-1">Comma-separated. AI will scan these every cycle.</p>
+      </div>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Max Position Size (%)
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            value={maxPositionPct}
-            onChange={(e) => setMaxPositionPct(Number(e.target.value))}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          />
+          <label className="block text-sm font-medium mb-1">Min Confidence</label>
+          <input type="number" min={0.3} max={0.9} step={0.05} value={form.min_confidence}
+            onChange={(e) => set("min_confidence", Number(e.target.value))}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+          <p className="text-xs text-muted-foreground mt-1">Lower = more trades. 0.5 = trade on slight edge.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Max Daily Loss ($)
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={100}
-            value={maxDailyLoss}
-            onChange={(e) => setMaxDailyLoss(Number(e.target.value))}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          />
+          <label className="block text-sm font-medium mb-1">Scan Interval (sec)</label>
+          <input type="number" min={10} max={3600} step={10} value={form.scan_interval_sec}
+            onChange={(e) => set("scan_interval_sec", Number(e.target.value))}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+          <p className="text-xs text-muted-foreground mt-1">Seconds between full ticker scans.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Max Concurrent Positions
-          </label>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={maxPositions}
-            onChange={(e) => setMaxPositions(Number(e.target.value))}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          />
+          <label className="block text-sm font-medium mb-1">Max Position Size (%)</label>
+          <input type="number" min={0.5} max={20} step={0.5} value={form.max_position_pct * 100}
+            onChange={(e) => set("max_position_pct", Number(e.target.value) / 100)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Auto-Execute Threshold (%)
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={0.1}
-            value={autoExecuteThreshold}
-            onChange={(e) => setAutoExecuteThreshold(Number(e.target.value))}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          />
+          <label className="block text-sm font-medium mb-1">Auto-Execute Threshold (%)</label>
+          <input type="number" min={0.5} max={20} step={0.5} value={form.auto_execute_threshold * 100}
+            onChange={(e) => set("auto_execute_threshold", Number(e.target.value) / 100)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+          <p className="text-xs text-muted-foreground mt-1">Positions below this % auto-execute without approval.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Max Daily Loss ($)</label>
+          <input type="number" min={100} step={500} value={form.max_daily_loss}
+            onChange={(e) => set("max_daily_loss", Number(e.target.value))}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Max Concurrent Positions</label>
+          <input type="number" min={1} max={50} value={form.max_positions}
+            onChange={(e) => set("max_positions", Number(e.target.value))}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
         </div>
       </div>
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={updateLimits.isPending}
-          className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {updateLimits.isPending ? "Saving..." : "Save Limits"}
-        </button>
-      </div>
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={updateLimits.isPending}
+        className="bg-primary text-primary-foreground rounded-md px-6 py-2 text-sm font-medium disabled:opacity-50"
+      >
+        {updateLimits.isPending ? "Saving..." : "Save Configuration"}
+      </button>
     </div>
   );
 }

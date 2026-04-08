@@ -27,6 +27,11 @@ export interface TradingLimits {
   max_daily_loss: number;
   max_positions: number;
   auto_execute_threshold: number;
+  min_confidence: number;
+  scan_interval_sec: number;
+  tickers: string;
+  use_council: boolean;
+  aggressive_mode: boolean;
 }
 
 export function useAppSettings() {

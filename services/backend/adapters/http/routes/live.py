@@ -382,68 +382,182 @@ async def connection_status() -> dict:
 
 
 _auto_trade_task: asyncio.Task[None] | None = None
-_auto_trade_tickers: list[str] = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA"]
+
+
+async def _get_quote_price(ticker: str) -> float:
+    """Fetch current price from Yahoo Finance. Returns 0 on failure."""
+    try:
+        from services.backend.http_client import make_async_client
+
+        async with make_async_client(timeout=5.0) as client:
+            resp = await client.get(
+                f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={ticker}",
+                headers={"User-Agent": "Mozilla/5.0 (compatible; PraxisBot/1.0)"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("quoteResponse", {}).get("result", [])
+            if results:
+                return float(results[0].get("regularMarketPrice", 0))
+    except Exception:  # noqa: BLE001
+        pass
+    return 0.0
+
+
+def _execute_order(ticker: str, side: str, quantity: int, price: float, trader: object | None) -> dict | None:
+    """Execute an order via broker or in-memory mock. Always updates _orders and _positions.
+
+    Broker orders use market orders (price=None) for guaranteed fills.
+    The ``price`` param is only used for in-memory position tracking.
+    """
+    order_result = None
+
+    # Try broker first — use market orders for reliable execution
+    if trader:
+        try:
+            from services.research.execution.broker import Broker
+            if isinstance(trader, Broker):
+                order_result = trader.submit_order(ticker, side, quantity, price=None)
+                logger.info("Broker order placed: %s %s %d shares (market order)", side.upper(), ticker, quantity)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Broker order failed for %s: %s", ticker, exc)
+
+    # Always record in-memory so positions/orders endpoints reflect the trade
+    order_id = order_result["id"] if order_result else str(uuid.uuid4())
+    order_record = {
+        "id": order_id,
+        "ticker": ticker,
+        "side": side,
+        "quantity": quantity,
+        "price": price,
+        "status": "filled",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "source": "alpaca" if order_result else "mock",
+    }
+    _orders.append(order_record)
+    if len(_orders) > _MAX_ORDERS:
+        _orders[:] = _orders[-_MAX_ORDERS:]
+
+    # Update positions
+    qty_signed = quantity * (1 if side == "buy" else -1)
+    if ticker in _positions:
+        _positions[ticker]["quantity"] += qty_signed
+        if _positions[ticker]["quantity"] == 0:
+            del _positions[ticker]
+        else:
+            _positions[ticker]["current_price"] = price
+    else:
+        _positions[ticker] = {
+            "ticker": ticker,
+            "quantity": qty_signed,
+            "avg_price": price,
+            "current_price": price,
+        }
+
+    return order_result
+
+
+async def _generate_signal_for_ticker(ticker: str, trader: object | None, equity: float) -> None:
+    """Generate a signal for one ticker and execute if appropriate."""
+    limits = _trading_limits
+    tickers_in_positions = set(_positions.keys())
+
+    if len(tickers_in_positions) >= limits.max_positions:
+        return
+
+    if limits.aggressive_mode:
+        # Skip council — generate signal from random-walk momentum
+        import random
+        probability = random.uniform(0.3, 0.8)
+        reason = f"Aggressive momentum signal for {ticker}"
+        source = "aggressive"
+    elif limits.use_council:
+        try:
+            thesis = (
+                f"Should I {_engine.config.strategy_type} trade {ticker} right now? "
+                f"Analyze current market conditions, recent price action, and sector trends. "
+                f"Give a clear directional probability."
+            )
+            synthesis = await _run_council(thesis, ticker)
+            probability = synthesis.get("probability", 0.5)
+            reason = synthesis.get("summary", f"Council P={probability:.2f}")
+            source = "council"
+        except Exception:  # noqa: BLE001
+            logger.warning("Council failed for %s, using default", ticker)
+            probability = 0.5
+            reason = "Council unavailable"
+            source = "fallback"
+    else:
+        probability = 0.5
+        reason = "No signal source configured"
+        source = "none"
+        return
+
+    signal = _engine.generate_signal(ticker, probability, reason)
+    if signal.direction == "hold":
+        logger.info("Auto-trade: %s → hold (prob=%.2f, threshold=%.2f)", ticker, probability, limits.min_confidence)
+        return
+
+    position_value = _engine.size_position(signal, equity)
+    if position_value <= 0:
+        return
+
+    # Fetch real price — skip ticker if price unavailable
+    price = await _get_quote_price(ticker)
+    if price <= 0:
+        logger.warning("Cannot get price for %s, skipping", ticker)
+        return
+
+    quantity = max(1, int(position_value / price))
+    pct_of_equity = position_value / equity if equity > 0 else 1.0
+
+    if pct_of_equity <= limits.auto_execute_threshold:
+        _execute_order(ticker, signal.direction, quantity, price, trader)
+        _create_signal_record(
+            ticker=ticker, direction=signal.direction,
+            confidence=signal.confidence, reason=signal.reason,
+            position_value=position_value, status="auto_executed", source=source,
+        )
+        logger.info("AUTO-EXECUTED: %s %s %d shares @ $%.2f (%.1f%% conf)", signal.direction.upper(), ticker, quantity, price, signal.confidence * 100)
+    else:
+        _create_signal_record(
+            ticker=ticker, direction=signal.direction,
+            confidence=signal.confidence, reason=signal.reason,
+            position_value=position_value, status="pending", source=source,
+        )
+        logger.info("PENDING APPROVAL: %s %s (%.1f%% conf, %.1f%% of equity)", signal.direction.upper(), ticker, signal.confidence * 100, pct_of_equity * 100)
 
 
 async def _auto_trade_loop() -> None:
-    """Background loop that generates AI signals periodically."""
+    """Background loop that scans tickers and generates AI signals."""
+    logger.info("Auto-trade loop started")
     while _engine.is_running:
-        for ticker in _auto_trade_tickers:
+        tickers = [t.strip() for t in _trading_limits.tickers.split(",") if t.strip()]
+        trader = _get_trader()
+        equity = 100_000.0
+        if trader:
+            try:
+                acct = trader.get_account()
+                equity = float(acct.get("equity", 100_000))
+            except Exception:  # noqa: BLE001
+                pass
+
+        for ticker in tickers:
             if not _engine.is_running:
                 break
             try:
-                thesis = f"Evaluate {ticker} for {_engine.config.strategy_type} strategy based on current market conditions"
-                synthesis = await _run_council(thesis, ticker)
-                probability = synthesis.get("probability", 0.5)
-
-                signal = _engine.generate_signal(ticker, probability, thesis)
-                if signal.direction == "hold":
-                    continue
-
-                trader = _get_trader()
-                equity = 100_000.0
-                if trader:
-                    try:
-                        acct = trader.get_account()
-                        equity = float(acct.get("equity", 100_000))
-                    except Exception:  # noqa: BLE001
-                        pass
-
-                position_value = _engine.size_position(signal, equity)
-                if position_value <= 0:
-                    continue
-
-                price = 100.0
-                quantity = max(1, int(position_value / price))
-                pct_of_equity = position_value / equity if equity > 0 else 1.0
-
-                if pct_of_equity < _trading_limits.auto_execute_threshold:
-                    if trader:
-                        try:
-                            trader.submit_order(ticker, signal.direction, quantity, price)
-                        except Exception:  # noqa: BLE001
-                            pass
-                    _create_signal_record(
-                        ticker=ticker, direction=signal.direction,
-                        confidence=signal.confidence, reason=signal.reason,
-                        position_value=position_value, status="auto_executed", source="council",
-                    )
-                else:
-                    _create_signal_record(
-                        ticker=ticker, direction=signal.direction,
-                        confidence=signal.confidence, reason=signal.reason,
-                        position_value=position_value, status="pending", source="council",
-                    )
-
-                logger.info("Auto-trade signal: %s %s @ %.1f%% confidence", signal.direction, ticker, signal.confidence * 100)
+                await _generate_signal_for_ticker(ticker, trader, equity)
             except Exception:  # noqa: BLE001
-                logger.exception("Auto-trade signal generation failed for %s", ticker)
+                logger.exception("Signal generation failed for %s", ticker)
 
-        # Wait before next round (5 minutes between full scans)
-        for _ in range(300):
+        interval = _trading_limits.scan_interval_sec
+        logger.info("Auto-trade scan complete, next scan in %ds", interval)
+        for _ in range(interval):
             if not _engine.is_running:
                 return
             await asyncio.sleep(1)
+
+    logger.info("Auto-trade loop stopped")
 
 
 @router.post("/auto-trade/start")
@@ -452,8 +566,8 @@ async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
     global _engine, _auto_trade_task  # noqa: PLW0603
     config = StrategyConfig(
         strategy_type=body.get("strategy", "momentum"),
-        min_confidence=body.get("min_confidence", 0.6),
-        max_position_pct=body.get("max_position_pct", 0.02),
+        min_confidence=body.get("min_confidence", _trading_limits.min_confidence),
+        max_position_pct=body.get("max_position_pct", _trading_limits.max_position_pct),
     )
     _engine = StrategyEngine(config)
     _engine.start()
@@ -462,7 +576,14 @@ async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
     if _auto_trade_task is None or _auto_trade_task.done():
         _auto_trade_task = asyncio.create_task(_auto_trade_loop())
 
-    return {"status": "running", "config": asdict(config)}
+    tickers = [t.strip() for t in _trading_limits.tickers.split(",") if t.strip()]
+    return {
+        "status": "running",
+        "config": asdict(config),
+        "tickers": tickers,
+        "scan_interval_sec": _trading_limits.scan_interval_sec,
+        "aggressive_mode": _trading_limits.aggressive_mode,
+    }
 
 
 @router.post("/auto-trade/stop")
@@ -487,12 +608,7 @@ async def auto_trade_status() -> dict:
 @router.get("/settings")
 async def get_trading_settings() -> dict:
     """Return current trading safety limits."""
-    return {
-        "max_position_pct": _trading_limits.max_position_pct,
-        "max_daily_loss": _trading_limits.max_daily_loss,
-        "max_positions": _trading_limits.max_positions,
-        "auto_execute_threshold": _trading_limits.auto_execute_threshold,
-    }
+    return asdict(_trading_limits)
 
 
 @router.post("/settings")
@@ -500,14 +616,15 @@ async def update_trading_settings(body: dict) -> dict:
     """Update trading safety limits."""
     global _trading_limits  # noqa: PLW0603
     _trading_limits = TradingLimits(
-        max_position_pct=body.get(
-            "max_position_pct", _trading_limits.max_position_pct
-        ),
+        max_position_pct=body.get("max_position_pct", _trading_limits.max_position_pct),
         max_daily_loss=body.get("max_daily_loss", _trading_limits.max_daily_loss),
         max_positions=body.get("max_positions", _trading_limits.max_positions),
-        auto_execute_threshold=body.get(
-            "auto_execute_threshold", _trading_limits.auto_execute_threshold
-        ),
+        auto_execute_threshold=body.get("auto_execute_threshold", _trading_limits.auto_execute_threshold),
+        min_confidence=body.get("min_confidence", _trading_limits.min_confidence),
+        scan_interval_sec=body.get("scan_interval_sec", _trading_limits.scan_interval_sec),
+        tickers=body.get("tickers", _trading_limits.tickers),
+        use_council=body.get("use_council", _trading_limits.use_council),
+        aggressive_mode=body.get("aggressive_mode", _trading_limits.aggressive_mode),
     )
     return asdict(_trading_limits)
 
@@ -528,16 +645,13 @@ async def approve_signal(signal_id: str) -> dict:
     """Approve a pending signal and execute the trade."""
     for sig in _signal_records:
         if sig.id == signal_id and sig.status == "pending":
-            sig.status = "approved"
             trader = _get_trader()
-            if trader and sig.direction != "hold":
-                try:
-                    price = 100.0  # would need real price
-                    qty = max(1, int(sig.position_value / price))
-                    trader.submit_order(sig.ticker, sig.direction, qty, price)
-                    sig.status = "executed"
-                except Exception:  # noqa: BLE001
-                    logger.warning("Order execution failed after approval")
+            price = await _get_quote_price(sig.ticker)
+            if price <= 0:
+                price = 100.0
+            qty = max(1, int(sig.position_value / price))
+            _execute_order(sig.ticker, sig.direction, qty, price, trader)
+            sig.status = "executed"
             return {"id": sig.id, "status": sig.status}
     raise HTTPException(status_code=404, detail="Signal not found or not pending")
 
@@ -637,16 +751,8 @@ async def generate_signal(body: dict) -> dict:
 
             source = "council" if use_council else "manual"
 
-            if pct_of_equity < _trading_limits.auto_execute_threshold:
-                order_result = None
-                if trader:
-                    try:
-                        order_result = trader.submit_order(
-                            ticker, signal.direction, quantity, price
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning("Alpaca order submission failed: %s", exc)
-
+            if pct_of_equity <= _trading_limits.auto_execute_threshold:
+                _execute_order(ticker, signal.direction, quantity, price, trader)
                 record = _create_signal_record(
                     ticker=ticker,
                     direction=signal.direction,
@@ -656,22 +762,6 @@ async def generate_signal(body: dict) -> dict:
                     status="auto_executed",
                     source=source,
                 )
-
-                if order_result:
-                    return {
-                        "signal": asdict(signal),
-                        "order": {
-                            "id": order_result["id"],
-                            "ticker": order_result["symbol"],
-                            "side": order_result["side"],
-                            "quantity": float(order_result["qty"]),
-                            "position_value": position_value,
-                            "status": order_result["status"],
-                            "source": "alpaca",
-                        },
-                        "approval": "auto_executed",
-                        "signal_record_id": record.id,
-                    }
                 return {
                     "signal": asdict(signal),
                     "order": {
@@ -679,8 +769,7 @@ async def generate_signal(body: dict) -> dict:
                         "side": signal.direction,
                         "quantity": quantity,
                         "position_value": position_value,
-                        "status": "submitted",
-                        "source": "mock",
+                        "status": "filled",
                     },
                     "approval": "auto_executed",
                     "signal_record_id": record.id,

@@ -165,3 +165,38 @@ def _run_crawler(source: str, query: str, limit: int) -> list[dict]:
         return [asdict(item) for item in items]
 
     raise ValueError(f"Unknown source: {source}. Available: market, fred, edgar, crypto, jin10, news")
+
+
+class TradeIdeaRequest(BaseModel):
+    thesis: str
+    ticker: str
+    council_synthesis: dict | None = None
+
+
+@router.post("/trade-idea")
+async def generate_trade_idea(body: TradeIdeaRequest) -> dict:
+    """Generate a discretionary trade idea via LLM PM.
+
+    NEVER auto-executes. Returns a structured idea for human review only.
+    """
+    from services.backend.config import get_settings
+    from services.intelligence.council.providers.gateway import LLMGateway
+    from services.intelligence.pm.discretionary import DiscretionaryPM
+
+    settings = get_settings()
+    gateway = LLMGateway(
+        api_key=settings.openrouter_api_key,
+        use_local=settings.use_local_llm,
+        ollama_base_url=settings.ollama_base_url,
+        ollama_model=settings.ollama_model,
+    )
+    pm = DiscretionaryPM(gateway)
+
+    try:
+        idea = await pm.generate_idea(
+            body.thesis,
+            {"ticker": body.ticker, "council_synthesis": body.council_synthesis},
+        )
+        return idea.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Trade idea generation failed: {e}") from e

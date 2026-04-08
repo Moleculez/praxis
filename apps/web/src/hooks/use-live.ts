@@ -62,6 +62,22 @@ export function useSymbolSearch(query: string) {
   });
 }
 
+export interface SymbolInfo {
+  symbol: string;
+  name: string;
+  sector: string;
+  market_cap: string;
+}
+
+export function useSymbolSearchEnriched(query: string) {
+  return useQuery({
+    queryKey: ["live", "symbols", "enriched", query],
+    queryFn: () => apiFetch<SymbolInfo[]>(`/live/symbols/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useSubmitOrder() {
   const qc = useQueryClient();
   return useMutation({

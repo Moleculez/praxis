@@ -18,19 +18,94 @@ router = APIRouter()
 # Module-level strategy engine for auto-trade endpoints.
 _engine = StrategyEngine()
 
-# Popular US stock tickers for autocomplete
-_POPULAR_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "NVDA", "META", "TSLA", "BRK.B",
-    "UNH", "JNJ", "V", "XOM", "JPM", "PG", "MA", "HD", "CVX", "MRK", "ABBV",
-    "LLY", "PEP", "KO", "COST", "AVGO", "WMT", "MCD", "CSCO", "TMO", "ACN",
-    "ABT", "DHR", "NEE", "LIN", "TXN", "PM", "RTX", "UNP", "ORCL", "AMD",
-    "CRM", "NFLX", "DIS", "INTC", "QCOM", "AMGN", "INTU", "LOW", "GS", "BA",
+# Popular US stock tickers with metadata for enriched autocomplete
+_TICKER_INFO: list[dict] = [
+    # Mega-cap tech
+    {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Technology", "market_cap": "3.4T"},
+    {"symbol": "MSFT", "name": "Microsoft Corp.", "sector": "Technology", "market_cap": "3.1T"},
+    {"symbol": "GOOGL", "name": "Alphabet Inc. (Class A)", "sector": "Technology", "market_cap": "2.1T"},
+    {"symbol": "AMZN", "name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "market_cap": "2.0T"},
+    {"symbol": "NVDA", "name": "NVIDIA Corp.", "sector": "Technology", "market_cap": "2.8T"},
+    {"symbol": "META", "name": "Meta Platforms Inc.", "sector": "Technology", "market_cap": "1.5T"},
+    {"symbol": "TSLA", "name": "Tesla Inc.", "sector": "Consumer Cyclical", "market_cap": "800B"},
+    {"symbol": "BRK.B", "name": "Berkshire Hathaway (B)", "sector": "Financials", "market_cap": "900B"},
+    # Healthcare
+    {"symbol": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare", "market_cap": "500B"},
+    {"symbol": "JNJ", "name": "Johnson & Johnson", "sector": "Healthcare", "market_cap": "380B"},
+    {"symbol": "LLY", "name": "Eli Lilly & Co.", "sector": "Healthcare", "market_cap": "750B"},
+    {"symbol": "MRK", "name": "Merck & Co.", "sector": "Healthcare", "market_cap": "280B"},
+    {"symbol": "ABBV", "name": "AbbVie Inc.", "sector": "Healthcare", "market_cap": "310B"},
+    {"symbol": "AMGN", "name": "Amgen Inc.", "sector": "Healthcare", "market_cap": "150B"},
+    # Financials
+    {"symbol": "V", "name": "Visa Inc.", "sector": "Financials", "market_cap": "550B"},
+    {"symbol": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials", "market_cap": "600B"},
+    {"symbol": "MA", "name": "Mastercard Inc.", "sector": "Financials", "market_cap": "430B"},
+    {"symbol": "GS", "name": "Goldman Sachs Group", "sector": "Financials", "market_cap": "160B"},
+    # Energy
+    {"symbol": "XOM", "name": "Exxon Mobil Corp.", "sector": "Energy", "market_cap": "460B"},
+    {"symbol": "CVX", "name": "Chevron Corp.", "sector": "Energy", "market_cap": "280B"},
+    # Consumer
+    {"symbol": "PG", "name": "Procter & Gamble Co.", "sector": "Consumer Staples", "market_cap": "380B"},
+    {"symbol": "KO", "name": "Coca-Cola Co.", "sector": "Consumer Staples", "market_cap": "270B"},
+    {"symbol": "PEP", "name": "PepsiCo Inc.", "sector": "Consumer Staples", "market_cap": "230B"},
+    {"symbol": "COST", "name": "Costco Wholesale", "sector": "Consumer Staples", "market_cap": "350B"},
+    {"symbol": "WMT", "name": "Walmart Inc.", "sector": "Consumer Staples", "market_cap": "500B"},
+    {"symbol": "MCD", "name": "McDonald's Corp.", "sector": "Consumer Cyclical", "market_cap": "200B"},
+    {"symbol": "HD", "name": "Home Depot Inc.", "sector": "Consumer Cyclical", "market_cap": "340B"},
+    {"symbol": "LOW", "name": "Lowe's Companies", "sector": "Consumer Cyclical", "market_cap": "140B"},
+    {"symbol": "DIS", "name": "Walt Disney Co.", "sector": "Communication", "market_cap": "170B"},
+    {"symbol": "NFLX", "name": "Netflix Inc.", "sector": "Communication", "market_cap": "280B"},
+    # Tech continued
+    {"symbol": "AVGO", "name": "Broadcom Inc.", "sector": "Technology", "market_cap": "650B"},
+    {"symbol": "CSCO", "name": "Cisco Systems", "sector": "Technology", "market_cap": "230B"},
+    {"symbol": "ACN", "name": "Accenture PLC", "sector": "Technology", "market_cap": "210B"},
+    {"symbol": "TXN", "name": "Texas Instruments", "sector": "Technology", "market_cap": "170B"},
+    {"symbol": "ORCL", "name": "Oracle Corp.", "sector": "Technology", "market_cap": "340B"},
+    {"symbol": "AMD", "name": "Advanced Micro Devices", "sector": "Technology", "market_cap": "220B"},
+    {"symbol": "CRM", "name": "Salesforce Inc.", "sector": "Technology", "market_cap": "250B"},
+    {"symbol": "INTC", "name": "Intel Corp.", "sector": "Technology", "market_cap": "100B"},
+    {"symbol": "QCOM", "name": "Qualcomm Inc.", "sector": "Technology", "market_cap": "180B"},
+    {"symbol": "INTU", "name": "Intuit Inc.", "sector": "Technology", "market_cap": "180B"},
+    # Industrials
+    {"symbol": "BA", "name": "Boeing Co.", "sector": "Industrials", "market_cap": "130B"},
+    {"symbol": "RTX", "name": "RTX Corp.", "sector": "Industrials", "market_cap": "150B"},
+    {"symbol": "UNP", "name": "Union Pacific Corp.", "sector": "Industrials", "market_cap": "150B"},
+    {"symbol": "TMO", "name": "Thermo Fisher Scientific", "sector": "Healthcare", "market_cap": "200B"},
+    {"symbol": "ABT", "name": "Abbott Laboratories", "sector": "Healthcare", "market_cap": "190B"},
+    {"symbol": "DHR", "name": "Danaher Corp.", "sector": "Healthcare", "market_cap": "180B"},
+    {"symbol": "NEE", "name": "NextEra Energy", "sector": "Utilities", "market_cap": "150B"},
+    {"symbol": "LIN", "name": "Linde PLC", "sector": "Materials", "market_cap": "210B"},
+    {"symbol": "PM", "name": "Philip Morris Intl.", "sector": "Consumer Staples", "market_cap": "190B"},
     # ETFs
-    "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VEA", "VWO", "BND", "TLT",
-    "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "ARKK", "SOXX",
-    # Crypto (Alpaca supports these)
-    "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "ADA/USD",
+    {"symbol": "SPY", "name": "SPDR S&P 500 ETF", "sector": "ETF", "market_cap": "500B+"},
+    {"symbol": "QQQ", "name": "Invesco QQQ (Nasdaq-100)", "sector": "ETF", "market_cap": "250B+"},
+    {"symbol": "IWM", "name": "iShares Russell 2000 ETF", "sector": "ETF", "market_cap": "60B"},
+    {"symbol": "DIA", "name": "SPDR Dow Jones ETF", "sector": "ETF", "market_cap": "30B"},
+    {"symbol": "VTI", "name": "Vanguard Total Stock Market", "sector": "ETF", "market_cap": "400B+"},
+    {"symbol": "VOO", "name": "Vanguard S&P 500 ETF", "sector": "ETF", "market_cap": "450B+"},
+    {"symbol": "VEA", "name": "Vanguard FTSE Developed", "sector": "ETF", "market_cap": "100B"},
+    {"symbol": "VWO", "name": "Vanguard FTSE Emerging", "sector": "ETF", "market_cap": "70B"},
+    {"symbol": "BND", "name": "Vanguard Total Bond ETF", "sector": "ETF", "market_cap": "100B"},
+    {"symbol": "TLT", "name": "iShares 20+ Year Treasury", "sector": "ETF", "market_cap": "50B"},
+    {"symbol": "GLD", "name": "SPDR Gold Shares", "sector": "ETF", "market_cap": "65B"},
+    {"symbol": "SLV", "name": "iShares Silver Trust", "sector": "ETF", "market_cap": "12B"},
+    {"symbol": "XLF", "name": "Financial Select Sector", "sector": "ETF", "market_cap": "40B"},
+    {"symbol": "XLK", "name": "Technology Select Sector", "sector": "ETF", "market_cap": "60B"},
+    {"symbol": "XLE", "name": "Energy Select Sector", "sector": "ETF", "market_cap": "35B"},
+    {"symbol": "XLV", "name": "Health Care Select Sector", "sector": "ETF", "market_cap": "40B"},
+    {"symbol": "XLI", "name": "Industrial Select Sector", "sector": "ETF", "market_cap": "20B"},
+    {"symbol": "XLY", "name": "Consumer Discretionary", "sector": "ETF", "market_cap": "20B"},
+    {"symbol": "ARKK", "name": "ARK Innovation ETF", "sector": "ETF", "market_cap": "6B"},
+    {"symbol": "SOXX", "name": "iShares Semiconductor ETF", "sector": "ETF", "market_cap": "12B"},
+    # Crypto
+    {"symbol": "BTC/USD", "name": "Bitcoin", "sector": "Crypto", "market_cap": "1.3T"},
+    {"symbol": "ETH/USD", "name": "Ethereum", "sector": "Crypto", "market_cap": "400B"},
+    {"symbol": "SOL/USD", "name": "Solana", "sector": "Crypto", "market_cap": "65B"},
+    {"symbol": "DOGE/USD", "name": "Dogecoin", "sector": "Crypto", "market_cap": "20B"},
+    {"symbol": "ADA/USD", "name": "Cardano", "sector": "Crypto", "market_cap": "15B"},
 ]
+
+_POPULAR_TICKERS = [t["symbol"] for t in _TICKER_INFO]
 
 # In-memory state for paper trading (resets on restart).
 _MAX_ORDERS = 10_000
@@ -40,11 +115,25 @@ _positions: dict[str, dict] = {}
 
 @router.get("/symbols")
 async def search_symbols(q: str = "") -> list[str]:
-    """Search ticker symbols for autocomplete."""
+    """Search ticker symbols for autocomplete (simple)."""
     if not q:
         return _POPULAR_TICKERS[:20]
     q_upper = q.upper()
     matches = [t for t in _POPULAR_TICKERS if t.startswith(q_upper)]
+    return matches[:15]
+
+
+@router.get("/symbols/search")
+async def search_symbols_enriched(q: str = "") -> list[dict]:
+    """Search ticker symbols with enriched metadata (name, sector, market cap)."""
+    if not q:
+        return _TICKER_INFO[:20]
+    q_upper = q.upper()
+    q_lower = q.lower()
+    matches = [
+        t for t in _TICKER_INFO
+        if t["symbol"].startswith(q_upper) or q_lower in t["name"].lower()
+    ]
     return matches[:15]
 
 

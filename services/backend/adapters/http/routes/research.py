@@ -74,12 +74,11 @@ async def run_pipeline_stage(experiment_id: str, stage: str) -> dict[str, Any]:
 
 
 @router.post("/ingest/{source}")
-async def ingest_data(source: str) -> dict[str, Any]:
+async def ingest_data(source: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Ingest data from a named source.
 
-    Supported sources are configured per deployment (e.g. ``polygon``,
-    ``fred``, ``edgar``).  This endpoint validates the source name and
-    enqueues the ingest job.
+    Supported sources: yahoo, fred, edgar, polygon, csv.
+    Accepts optional ``ticker`` in body (defaults to SPY).
     """
     known_sources = {"polygon", "fred", "edgar", "yahoo", "csv"}
     if source not in known_sources:
@@ -88,10 +87,36 @@ async def ingest_data(source: str) -> dict[str, Any]:
             detail=f"Unknown source '{source}'. Known: {sorted(known_sources)}",
         )
 
+    ticker = (body or {}).get("ticker", "SPY")
+    rows = 0
+
+    try:
+        if source == "yahoo":
+            from services.research.data.ingest import DataIngestor
+
+            df = DataIngestor().ingest_ohlcv(ticker, period="1y")
+            rows = len(df)
+        elif source == "fred":
+            from services.intelligence.crawlers.fred.client import FredClient
+
+            items = FredClient(api_key="").fetch(ticker)
+            rows = len(items)
+        elif source == "edgar":
+            from services.intelligence.crawlers.edgar.client import EdgarClient
+
+            items = EdgarClient(user_agent="Praxis Research bot@praxis.dev").fetch(ticker)
+            rows = len(items)
+        else:
+            rows = 0
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Ingest failed: {exc}") from exc
+
     return {
         "source": source,
-        "status": "queued",
-        "message": f"Ingest from '{source}' has been queued.",
+        "ticker": ticker,
+        "rows": rows,
+        "status": "completed",
+        "message": f"Ingested {rows} rows from '{source}' for {ticker}.",
     }
 
 

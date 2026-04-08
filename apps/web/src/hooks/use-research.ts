@@ -50,15 +50,16 @@ export function useRunPipelineStage() {
 export function useIngestData() {
   return useMutation({
     mutationFn: ({ source, ticker }: { source: string; ticker?: string }) =>
-      apiFetch<{ source: string; rows: number }>(
+      apiFetch<{ source: string; ticker: string; rows: number; status: string; message: string }>(
         `/research/ingest/${source}`,
         {
           method: "POST",
           body: JSON.stringify({ ticker: ticker || "SPY" }),
+          timeout: 30_000,
         },
       ),
     onSuccess: (data) =>
-      toast.success(`Ingested ${data.rows} rows from ${data.source}`),
+      toast.success(data.message || `Ingested ${data.rows} rows from ${data.source}`),
     onError: () => toast.error("Data ingest failed"),
   });
 }

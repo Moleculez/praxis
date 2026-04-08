@@ -7,7 +7,7 @@ import {
   useOrders,
   useTradingSummary,
   useSubmitOrder,
-  useSymbolSearch,
+  useSymbolSearchEnriched,
   useAutoTradeStatus,
   useSignals,
   useStartAutoTrade,
@@ -278,7 +278,7 @@ export default function LivePage() {
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [ticker, setTicker] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const { data: suggestions } = useSymbolSearch(ticker);
+  const { data: suggestions } = useSymbolSearchEnriched(ticker);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -382,17 +382,26 @@ export default function LivePage() {
                     autoComplete="off"
                   />
                   {showSuggestions && suggestions && suggestions.length > 0 && (
-                    <ul className="absolute top-full left-0 right-0 z-10 mt-1 rounded-md border bg-background shadow-lg max-h-48 overflow-y-auto">
+                    <ul className="absolute top-full left-0 z-10 mt-1 w-80 rounded-md border bg-background shadow-lg max-h-64 overflow-y-auto">
                       {suggestions.map((s) => (
                         <li
-                          key={s}
+                          key={s.symbol}
                           onMouseDown={() => {
-                            setTicker(s);
+                            setTicker(s.symbol);
                             setShowSuggestions(false);
                           }}
-                          className="px-3 py-2 text-sm hover:bg-muted cursor-pointer"
+                          className="px-3 py-2 hover:bg-muted cursor-pointer"
                         >
-                          {s}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium text-sm">{s.symbol}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{s.sector}</span>
+                              <span className="text-xs text-muted-foreground">{s.market_cap}</span>
+                            </div>
+                          </div>
                         </li>
                       ))}
                     </ul>

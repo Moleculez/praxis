@@ -357,6 +357,109 @@ async def get_summary() -> dict:
     }
 
 
+_EMPTY_PERFORMANCE: dict = {
+    "total_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0,
+    "total_pnl": 0,
+    "best_trade": 0,
+    "worst_trade": 0,
+    "max_drawdown": None,
+}
+
+
+def _compute_realized_trades(orders: list[dict]) -> list[dict]:
+    """Extract realized round-trip trades from an order list using FIFO cost-basis.
+
+    Each returned dict has keys ``pnl`` and ``ticker``.  Orders are sorted by
+    timestamp before processing.
+    """
+    positions: dict[str, dict] = {}
+    trades: list[dict] = []
+    for order in sorted(orders, key=lambda o: o.get("timestamp", "")):
+        ticker = order.get("ticker", "")
+        side = order.get("side", "buy")
+        quantity = order.get("quantity", 0)
+        price = order.get("price", 0)
+        if not ticker or not quantity or not price:
+            continue
+        pos = positions.get(ticker, {"qty": 0.0, "avg_cost": 0.0})
+        if side == "buy":
+            total_cost = pos["qty"] * pos["avg_cost"] + quantity * price
+            pos["qty"] += quantity
+            pos["avg_cost"] = total_cost / pos["qty"] if pos["qty"] > 0 else 0
+        else:
+            qty_sold = min(quantity, pos["qty"])
+            if qty_sold > 0:
+                trades.append({"pnl": (price - pos["avg_cost"]) * qty_sold, "ticker": ticker})
+            pos["qty"] = max(0.0, pos["qty"] - quantity)
+        positions[ticker] = pos
+    return trades
+
+
+@router.get("/performance")
+async def get_performance() -> dict:
+    """Compute round-trip trade performance from order history."""
+    all_orders = _orders
+    trader = _get_trader()
+    if trader:
+        try:
+            alpaca_orders = trader.get_orders(status="all", limit=200)
+            all_orders = [
+                {
+                    "ticker": o["symbol"],
+                    "side": o["side"],
+                    "quantity": float(o["qty"]),
+                    "price": float(
+                        o.get("filled_avg_price") or o.get("limit_price") or 0
+                    ),
+                    "timestamp": o["created_at"],
+                }
+                for o in alpaca_orders
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("Alpaca orders fetch failed for performance, using in-memory")
+
+    if not all_orders:
+        return {**_EMPTY_PERFORMANCE}
+
+    trades = _compute_realized_trades(all_orders)
+    if not trades:
+        return {**_EMPTY_PERFORMANCE}
+
+    wins = [t for t in trades if t["pnl"] > 0]
+    losses = [t for t in trades if t["pnl"] <= 0]
+    total_win = sum(t["pnl"] for t in wins)
+    total_loss = sum(t["pnl"] for t in losses)
+
+    # Compute max drawdown from cumulative P&L curve
+    cum_pnl = 0.0
+    peak = 0.0
+    max_drawdown = 0.0
+    for t in trades:
+        cum_pnl += t["pnl"]
+        peak = max(peak, cum_pnl)
+        max_drawdown = max(max_drawdown, peak - cum_pnl)
+
+    return {
+        "total_trades": len(trades),
+        "winning_trades": len(wins),
+        "losing_trades": len(losses),
+        "win_rate": round(len(wins) / len(trades), 4),
+        "avg_win": round(total_win / len(wins), 2) if wins else 0,
+        "avg_loss": round(total_loss / len(losses), 2) if losses else 0,
+        "profit_factor": round(abs(total_win) / abs(total_loss), 2) if total_loss != 0 else 0,
+        "total_pnl": round(cum_pnl, 2),
+        "best_trade": round(max(t["pnl"] for t in trades), 2),
+        "worst_trade": round(min(t["pnl"] for t in trades), 2),
+        "max_drawdown": round(max_drawdown, 2) if max_drawdown > 0 else None,
+    }
+
+
 @router.get("/connection-status")
 async def connection_status() -> dict:
     """Check whether Alpaca paper-trading API is reachable."""

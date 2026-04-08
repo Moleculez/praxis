@@ -184,6 +184,28 @@ export function useGenerateSignal() {
   });
 }
 
+export interface PerformanceMetrics {
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  avg_win: number;
+  avg_loss: number;
+  profit_factor: number;
+  total_pnl: number;
+  best_trade: number;
+  worst_trade: number;
+  max_drawdown: number | null;
+}
+
+export function usePerformance() {
+  return useQuery({
+    queryKey: ["live", "performance"],
+    queryFn: () => apiFetch<PerformanceMetrics>("/live/performance"),
+    refetchInterval: 10_000,
+  });
+}
+
 export function useConnectionStatus() {
   return useQuery({
     queryKey: ["live", "connection-status"],

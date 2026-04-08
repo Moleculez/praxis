@@ -19,6 +19,7 @@ import {
   useStopAutoTrade,
   useGenerateSignal,
   useConnectionStatus,
+  usePerformance,
 } from "@/hooks/use-live";
 import { usePortfolio } from "@/hooks/use-portfolios";
 
@@ -836,12 +837,33 @@ function EquityCurveChart() {
   const orders = useOrders();
   const equityData = useMemo(() => {
     if (!orders.data?.length) return [];
-    let cumulative = 0;
-    return orders.data.map((o) => {
-      const pnl = o.side === "sell" ? o.price * o.quantity : -(o.price * o.quantity);
-      cumulative += pnl;
-      return { time: new Date(o.timestamp).toLocaleDateString(), pnl: Math.round(cumulative) };
-    });
+    const positions = new Map<string, { qty: number; avgCost: number }>();
+    let cumPnl = 0;
+    return orders.data
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      )
+      .map((o) => {
+        const pos = positions.get(o.ticker) || { qty: 0, avgCost: 0 };
+        if (o.side === "buy") {
+          const totalCost = pos.qty * pos.avgCost + o.quantity * o.price;
+          pos.qty += o.quantity;
+          pos.avgCost = pos.qty > 0 ? totalCost / pos.qty : 0;
+        } else {
+          // sell: realize P&L against average cost basis
+          const realizedPnl =
+            (o.price - pos.avgCost) * Math.min(o.quantity, pos.qty);
+          cumPnl += realizedPnl;
+          pos.qty = Math.max(0, pos.qty - o.quantity);
+        }
+        positions.set(o.ticker, pos);
+        return {
+          time: new Date(o.timestamp).toLocaleDateString(),
+          pnl: Math.round(cumPnl * 100) / 100,
+        };
+      });
   }, [orders.data]);
 
   return (
@@ -932,6 +954,88 @@ function ConfidenceDistribution() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Performance Metrics                                                */
+/* ------------------------------------------------------------------ */
+
+function PerformanceMetrics() {
+  const perf = usePerformance();
+
+  if (perf.isLoading) {
+    return (
+      <div className="rounded-lg border p-4">
+        <h3 className="text-sm font-semibold mb-3">Performance</h3>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          Loading...
+        </p>
+      </div>
+    );
+  }
+
+  const d = perf.data;
+  if (!d || d.total_trades === 0) {
+    return (
+      <div className="rounded-lg border p-4">
+        <h3 className="text-sm font-semibold mb-3">Performance</h3>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          No completed round-trip trades yet
+        </p>
+      </div>
+    );
+  }
+
+  const metrics: { label: string; value: string; color?: string }[] = [
+    {
+      label: "Win Rate",
+      value: `${(d.win_rate * 100).toFixed(1)}%`,
+      color: d.win_rate >= 0.5 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
+    },
+    {
+      label: "Profit Factor",
+      value: d.profit_factor > 0 ? d.profit_factor.toFixed(2) : "N/A",
+      color: d.profit_factor >= 1 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
+    },
+    {
+      label: "Total P&L",
+      value: formatCurrency(d.total_pnl),
+      color: pnlColor(d.total_pnl),
+    },
+    {
+      label: "Max Drawdown",
+      value: d.max_drawdown != null ? formatCurrency(d.max_drawdown) : "N/A",
+    },
+    {
+      label: "Best Trade",
+      value: formatCurrency(d.best_trade),
+      color: "text-green-600 dark:text-green-400",
+    },
+    {
+      label: "Worst Trade",
+      value: formatCurrency(d.worst_trade),
+      color: "text-red-600 dark:text-red-400",
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border p-4">
+      <h3 className="text-sm font-semibold mb-3">
+        Performance
+        <span className="ml-2 text-xs font-normal text-muted-foreground">
+          {d.total_trades} trades ({d.winning_trades}W / {d.losing_trades}L)
+        </span>
+      </h3>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {metrics.map((m) => (
+          <div key={m.label} className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">{m.label}</p>
+            <p className={cn("text-sm font-semibold", m.color)}>{m.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -949,6 +1053,7 @@ export default function TradingPage() {
             <EquityCurveChart />
             <AllocationChart />
           </div>
+          <PerformanceMetrics />
           <PositionsTable />
           <OrderHistory />
         </div>

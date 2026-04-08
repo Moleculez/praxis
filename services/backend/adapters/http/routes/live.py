@@ -10,8 +10,12 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.backend.adapters.db.models import OrderRow
+from services.backend.adapters.http.dependencies import get_session
 from services.backend.domain.trading_limits import SignalRecord, TradingLimits
 from services.research.execution.strategy import StrategyConfig, StrategyEngine
 
@@ -243,9 +247,12 @@ async def get_orders() -> list[dict]:
     if trader:
         try:
             alpaca_orders = trader.get_orders(status="all", limit=50)
-            return [
-                {
-                    "id": o["id"],
+            notes_by_id = {o.get("id"): o.get("notes", "") for o in _orders}
+            result = []
+            for o in alpaca_orders:
+                oid = o["id"]
+                result.append({
+                    "id": oid,
                     "ticker": o["symbol"],
                     "side": o["side"],
                     "quantity": float(o["qty"]),
@@ -254,9 +261,9 @@ async def get_orders() -> list[dict]:
                     ),
                     "status": o["status"],
                     "timestamp": o["created_at"],
-                }
-                for o in alpaca_orders
-            ]
+                    "notes": notes_by_id.get(oid, ""),
+                })
+            return result
         except Exception:  # noqa: BLE001
             logger.warning("Alpaca orders fetch failed, using in-memory")
     return _orders
@@ -306,6 +313,7 @@ async def submit_order(body: dict) -> dict:
         "status": "filled",
         "timestamp": datetime.now(UTC).isoformat(),
         "source": "mock",
+        "notes": "",
     }
     _orders.append(order)
     if len(_orders) > _MAX_ORDERS:
@@ -315,6 +323,31 @@ async def submit_order(body: dict) -> dict:
         _update_position(body["ticker"], body["side"], body["quantity"], mock_price)
 
     return order
+
+
+@router.patch("/orders/{order_id}/notes")
+async def update_order_notes(
+    order_id: str,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update notes on an order for trade journaling."""
+    notes = body.get("notes", "")
+
+    # Update in-memory
+    for order in _orders:
+        if order.get("id") == order_id:
+            order["notes"] = notes
+            break
+    else:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Persist to DB
+    stmt = update(OrderRow).where(OrderRow.id == order_id).values(notes=notes)
+    await session.execute(stmt)
+    await session.commit()
+
+    return {"id": order_id, "notes": notes}
 
 
 @router.get("/summary")

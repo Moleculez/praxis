@@ -1,7 +1,14 @@
 "use client";
 
-import { useIntelBriefs, useCrawlerSources } from "@/hooks/use-intelligence";
+import { useState } from "react";
+import {
+  useIntelBriefs,
+  useCrawlerSources,
+  useEvaluateThesis,
+  useGenerateTradeIdea,
+} from "@/hooks/use-intelligence";
 import { Markdown } from "@/components/markdown";
+import type { CouncilSynthesis } from "@/types";
 
 const PERSONAS = [
   {
@@ -109,6 +116,207 @@ function formatLastUpdated(ts: string): string {
   return `${diffDays}d ago`;
 }
 
+function probabilityColor(p: number): string {
+  if (p > 0.6) return "text-green-600 dark:text-green-400";
+  if (p >= 0.4) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+function consensusBadge(consensus: string): { label: string; className: string } {
+  switch (consensus) {
+    case "strong":
+      return {
+        label: "Strong",
+        className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+      };
+    case "divided":
+      return {
+        label: "Divided",
+        className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+      };
+    default:
+      return {
+        label: "Moderate",
+        className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+      };
+  }
+}
+
+function ThesisEvaluator() {
+  const [ticker, setTicker] = useState("");
+  const [thesis, setThesis] = useState("");
+  const evaluate = useEvaluateThesis();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!thesis.trim()) return;
+    evaluate.mutate({
+      thesis: thesis.trim(),
+      ticker: ticker.trim() || undefined,
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-lg font-semibold">Evaluate Thesis</h2>
+      <form onSubmit={handleSubmit} className="rounded-lg border p-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Ticker (optional)
+          </label>
+          <input
+            type="text"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            placeholder="AAPL"
+            className="rounded-md border bg-background px-3 py-2 text-sm w-32"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Thesis
+          </label>
+          <textarea
+            value={thesis}
+            onChange={(e) => setThesis(e.target.value)}
+            rows={4}
+            placeholder="Describe your investment thesis..."
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={evaluate.isPending || !thesis.trim()}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {evaluate.isPending ? "Evaluating..." : "Evaluate with Council"}
+        </button>
+      </form>
+
+      {evaluate.isPending && (
+        <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+          <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent mr-2 align-middle" />
+          Council evaluating... this may take 30-60 seconds
+        </div>
+      )}
+
+      {evaluate.isSuccess && evaluate.data && (
+        <CouncilResults
+          synthesis={evaluate.data}
+          thesis={thesis}
+          ticker={ticker}
+        />
+      )}
+    </section>
+  );
+}
+
+function CouncilResults({
+  synthesis,
+  thesis,
+  ticker,
+}: {
+  synthesis: CouncilSynthesis;
+  thesis: string;
+  ticker: string;
+}) {
+  const badge = consensusBadge(synthesis.consensus);
+  const tradeIdea = useGenerateTradeIdea();
+
+  return (
+    <div className="rounded-lg border p-4 space-y-6">
+      {/* Header: probability + consensus */}
+      <div className="flex items-center gap-6">
+        <div className="text-center">
+          <p className={`text-4xl font-bold tabular-nums ${probabilityColor(synthesis.probability)}`}>
+            {Math.round(synthesis.probability * 100)}%
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Range: {Math.round(synthesis.probability_range[0] * 100)}%-{Math.round(synthesis.probability_range[1] * 100)}%
+          </p>
+        </div>
+        <div className="space-y-2">
+          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+            {badge.label} consensus
+          </span>
+          <p className="text-sm text-muted-foreground">
+            {synthesis.n_personas} personas evaluated (spread: {(synthesis.spread * 100).toFixed(1)}%)
+          </p>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div>
+        <h3 className="text-sm font-medium mb-1">Summary</h3>
+        <p className="text-sm text-muted-foreground">{synthesis.summary}</p>
+      </div>
+
+      {/* Per-persona assessments */}
+      <div>
+        <h3 className="text-sm font-medium mb-3">Persona Assessments</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {synthesis.assessments.map((a) => (
+            <div key={a.persona_id} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{a.persona_id}</p>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                  {a.confidence}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 flex-1 rounded-full bg-muted">
+                  <div
+                    className={`h-1.5 rounded-full ${a.probability > 0.6 ? "bg-green-500" : a.probability >= 0.4 ? "bg-yellow-500" : "bg-red-500"}`}
+                    style={{ width: `${Math.round(a.probability * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {Math.round(a.probability * 100)}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-3">
+                {a.assessment}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Disagreements */}
+      {synthesis.disagreements.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium mb-2">Disagreements</h3>
+          <ul className="space-y-1">
+            {synthesis.disagreements.map((d, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                {d}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Generate Trade Idea */}
+      {ticker && (
+        <button
+          onClick={() =>
+            tradeIdea.mutate({
+              thesis,
+              ticker,
+              council_synthesis: synthesis,
+            })
+          }
+          disabled={tradeIdea.isPending}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {tradeIdea.isPending ? "Generating..." : "Generate Trade Idea"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function IntelligencePage() {
   const briefs = useIntelBriefs();
   const sources = useCrawlerSources();
@@ -132,6 +340,8 @@ export default function IntelligencePage() {
           <Markdown content={OVERVIEW_TEXT} className="text-sm text-muted-foreground leading-relaxed" />
         </div>
       </section>
+
+      <ThesisEvaluator />
 
       <section>
         <h2 className="text-lg font-semibold">Council Personas</h2>

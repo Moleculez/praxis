@@ -13,6 +13,7 @@ import {
   useStartAutoTrade,
   useStopAutoTrade,
   useGenerateSignal,
+  useConnectionStatus,
 } from "@/hooks/use-live";
 
 function formatCurrency(value: number): string {
@@ -70,6 +71,8 @@ function AutoTradePanel() {
   const [minConfidence, setMinConfidence] = useState(0.6);
   const [genTicker, setGenTicker] = useState("");
   const [genProbability, setGenProbability] = useState("");
+  const [genThesis, setGenThesis] = useState("");
+  const [useCouncil, setUseCouncil] = useState(false);
 
   const isRunning = autoStatus.data?.running ?? false;
 
@@ -83,13 +86,20 @@ function AutoTradePanel() {
 
   function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
-    if (!genTicker || !genProbability) return;
+    if (!genTicker) return;
+    if (!useCouncil && !genProbability) return;
     generateSignal.mutate(
-      { ticker: genTicker.toUpperCase(), probability: Number(genProbability) },
+      {
+        ticker: genTicker.toUpperCase(),
+        probability: useCouncil ? undefined : Number(genProbability),
+        thesis: genThesis || undefined,
+        use_council: useCouncil,
+      },
       {
         onSuccess: () => {
           setGenTicker("");
           setGenProbability("");
+          setGenThesis("");
         },
       },
     );
@@ -223,42 +233,82 @@ function AutoTradePanel() {
         )}
       </div>
 
-      {/* Generate Signal (manual test) */}
+      {/* Generate Signal */}
       <div className="rounded-lg border p-4">
-        <h2 className="mb-4 text-lg font-semibold">Generate Signal (Test)</h2>
-        <form onSubmit={handleGenerate} className="flex items-end gap-3">
+        <h2 className="mb-4 text-lg font-semibold">Generate Signal</h2>
+        <form onSubmit={handleGenerate} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="gen-ticker" className="text-xs font-medium text-muted-foreground">
+                Ticker
+              </label>
+              <input
+                id="gen-ticker"
+                type="text"
+                value={genTicker}
+                onChange={(e) => setGenTicker(e.target.value)}
+                placeholder="AAPL"
+                className="h-9 rounded-md border bg-background px-3 text-sm uppercase"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="gen-probability" className="text-xs font-medium text-muted-foreground">
+                Manual Probability (0-1)
+              </label>
+              <input
+                id="gen-probability"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={genProbability}
+                onChange={(e) => setGenProbability(e.target.value)}
+                placeholder="0.75"
+                disabled={useCouncil}
+                className="h-9 rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+              />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1">
-            <label htmlFor="gen-ticker" className="text-xs font-medium text-muted-foreground">
-              Ticker
+            <label htmlFor="gen-thesis" className="text-xs font-medium text-muted-foreground">
+              Thesis
             </label>
-            <input
-              id="gen-ticker"
-              type="text"
-              value={genTicker}
-              onChange={(e) => setGenTicker(e.target.value)}
-              placeholder="AAPL"
-              className="h-9 w-28 rounded-md border bg-background px-3 text-sm uppercase"
+            <textarea
+              id="gen-thesis"
+              rows={3}
+              value={genThesis}
+              onChange={(e) => {
+                const prev = genThesis.trim();
+                setGenThesis(e.target.value);
+                if (!prev && e.target.value.trim()) setUseCouncil(true);
+              }}
+              placeholder="Describe your investment thesis for AI council evaluation..."
+              className="rounded-md border bg-background px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="gen-probability" className="text-xs font-medium text-muted-foreground">
-              Probability (0-1)
-            </label>
+
+          <div className="flex items-center gap-2">
             <input
-              id="gen-probability"
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-              value={genProbability}
-              onChange={(e) => setGenProbability(e.target.value)}
-              placeholder="0.75"
-              className="h-9 w-28 rounded-md border bg-background px-3 text-sm"
+              id="use-council"
+              type="checkbox"
+              checked={useCouncil}
+              onChange={(e) => setUseCouncil(e.target.checked)}
+              className="h-4 w-4 rounded border"
             />
+            <label htmlFor="use-council" className="text-sm font-medium">
+              Use AI Council
+            </label>
+            {useCouncil && (
+              <span className="text-xs text-muted-foreground">
+                Council evaluation may take 30-60 seconds
+              </span>
+            )}
           </div>
+
           <button
             type="submit"
-            disabled={generateSignal.isPending || !genTicker || !genProbability}
+            disabled={generateSignal.isPending || !genTicker || (!useCouncil && !genProbability)}
             className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {generateSignal.isPending ? "Generating..." : "Generate"}
@@ -274,6 +324,7 @@ export default function LivePage() {
   const orders = useOrders();
   const summary = useTradingSummary();
   const submitOrder = useSubmitOrder();
+  const connectionStatus = useConnectionStatus();
 
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [ticker, setTicker] = useState("");
@@ -311,12 +362,30 @@ export default function LivePage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Live</h1>
 
-      {/* Status banner */}
+      {/* Connection status banner */}
       <div className="flex items-center gap-2 rounded-lg border p-4">
-        <span className="inline-block h-3 w-3 rounded-full bg-green-500" />
-        <span className="font-medium">Paper Trading Mode</span>
-        {summary.data && (
+        <span
+          className={`inline-block h-3 w-3 rounded-full ${
+            connectionStatus.data?.connected ? "bg-green-500" : "bg-yellow-500"
+          }`}
+        />
+        <span className="font-medium">
+          {connectionStatus.data?.connected
+            ? "Alpaca Paper Trading"
+            : "Mock Trading Mode"}
+        </span>
+        {connectionStatus.data?.connected && connectionStatus.data.equity != null && (
           <span className="ml-auto text-sm text-muted-foreground">
+            Equity: ${connectionStatus.data.equity.toLocaleString()}
+          </span>
+        )}
+        {!connectionStatus.data?.connected && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Set ALPACA_API_KEY in .env to connect
+          </span>
+        )}
+        {summary.data && (
+          <span className="text-sm text-muted-foreground">
             {summary.data.trades_today} trade{summary.data.trades_today !== 1 ? "s" : ""} today
           </span>
         )}

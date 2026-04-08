@@ -162,18 +162,35 @@ export function useGenerateSignal() {
   return useMutation({
     mutationFn: (data: {
       ticker: string;
-      probability: number;
+      probability?: number;
       thesis?: string;
+      use_council?: boolean;
       price?: number;
     }) =>
       apiFetch("/live/auto-trade/generate-signal", {
         method: "POST",
         body: JSON.stringify(data),
+        timeout: data.use_council ? 120_000 : 10_000,
       }),
     onSuccess: () => {
       toast.success("Signal generated");
       qc.invalidateQueries({ queryKey: ["live", "signals"] });
     },
     onError: () => toast.error("Signal generation failed"),
+  });
+}
+
+export function useConnectionStatus() {
+  return useQuery({
+    queryKey: ["live", "connection-status"],
+    queryFn: () =>
+      apiFetch<{
+        connected: boolean;
+        source: string;
+        error?: string;
+        equity?: number;
+      }>("/live/connection-status"),
+    refetchInterval: 30_000,
+    retry: 1,
   });
 }

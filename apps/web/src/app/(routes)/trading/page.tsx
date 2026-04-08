@@ -113,6 +113,7 @@ function AIControlBar() {
   const isRunning = autoStatus.data?.running ?? false;
   const connected = connectionStatus.data?.connected ?? false;
   const equity = connectionStatus.data?.equity;
+  const promoted = autoStatus.data?.promoted;
 
   function handleStart() {
     startAutoTrade.mutate({ strategy, min_confidence: minConfidence });
@@ -129,7 +130,7 @@ function AIControlBar() {
   }
 
   return (
-    <div className="rounded-lg border p-4">
+    <div className="rounded-lg border p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-4">
         {/* Strategy selector */}
         <div className="flex items-center gap-2">
@@ -236,6 +237,23 @@ function AIControlBar() {
           )}
         </div>
       </div>
+
+      {/* Promoted strategy badge */}
+      {promoted?.experiment_id && (
+        <div className="rounded-lg border border-green-500/30 bg-green-50 dark:bg-green-900/20 p-3">
+          <span className="text-xs font-medium text-green-700 dark:text-green-400">
+            Promoted from Research
+          </span>
+          <p className="text-sm font-medium mt-1">
+            {promoted.experiment_name || promoted.experiment_id}
+          </p>
+          {promoted.promoted_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Promoted {new Date(promoted.promoted_at).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

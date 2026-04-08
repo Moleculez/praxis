@@ -373,8 +373,19 @@ export default function ResearchPage() {
             </p>
             <button
               onClick={() => {
+                const exp = experiments?.find((e) => e.id === selectedExpId);
+                const strategy = String(
+                  exp?.manifest?.strategy_type ??
+                  exp?.manifest?.model_type ??
+                  "momentum",
+                );
                 startAutoTrade.mutate(
-                  { strategy: "momentum", min_confidence: 0.6 },
+                  {
+                    strategy,
+                    min_confidence: 0.6,
+                    experiment_id: selectedExpId,
+                    experiment_name: exp?.name ?? selectedExpId,
+                  },
                   {
                     onSuccess: () => {
                       toast.success("Strategy promoted! AI Trading started.");

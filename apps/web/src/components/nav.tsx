@@ -15,6 +15,7 @@ import {
   Moon,
   Menu,
   X,
+  Eye,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAutoTradeStatus, useStopAutoTrade } from "@/hooks/use-live";
@@ -27,6 +28,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/watchlist", label: "Watchlist", icon: Eye },
   { href: "/trading", label: "Trading", icon: TrendingUp },
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/intelligence", label: "Intelligence", icon: Brain },

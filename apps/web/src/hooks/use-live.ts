@@ -80,6 +80,62 @@ export function useSymbolSearchEnriched(query: string) {
   });
 }
 
+export interface WatchlistItem {
+  id: string;
+  ticker: string;
+  name: string;
+  target_price: number | null;
+  alert_type: "above" | "below";
+  current_price: number | null;
+  change_pct: number | null;
+  distance_pct: number | null;
+  triggered: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export function useWatchlist() {
+  return useQuery({
+    queryKey: ["live", "watchlist"],
+    queryFn: () => apiFetch<WatchlistItem[]>("/live/watchlist"),
+    refetchInterval: 15_000,
+  });
+}
+
+export function useAddToWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      ticker: string;
+      name?: string;
+      target_price?: number | null;
+      alert_type?: string;
+    }) =>
+      apiFetch<WatchlistItem>("/live/watchlist", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      toast.success("Added to watchlist");
+      qc.invalidateQueries({ queryKey: ["live", "watchlist"] });
+    },
+    onError: () => toast.error("Failed to add to watchlist"),
+  });
+}
+
+export function useRemoveFromWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/live/watchlist/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Removed from watchlist");
+      qc.invalidateQueries({ queryKey: ["live", "watchlist"] });
+    },
+    onError: () => toast.error("Failed to remove from watchlist"),
+  });
+}
+
 export function useSubmitOrder() {
   const qc = useQueryClient();
   return useMutation({

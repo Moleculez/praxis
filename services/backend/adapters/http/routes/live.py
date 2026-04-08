@@ -381,6 +381,7 @@ async def connection_status() -> dict:
 
 _auto_trade_task: asyncio.Task[None] | None = None
 _auto_trade_tickers: list[str] = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA"]
+_promoted_experiment: dict | None = None
 
 
 async def _auto_trade_loop() -> None:
@@ -450,7 +451,7 @@ async def _auto_trade_loop() -> None:
 @router.post("/auto-trade/start")
 async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
     """Start the strategy engine and background signal generation."""
-    global _engine, _auto_trade_task  # noqa: PLW0603
+    global _engine, _auto_trade_task, _promoted_experiment  # noqa: PLW0603
     config = StrategyConfig(
         strategy_type=body.get("strategy", "momentum"),
         min_confidence=body.get("min_confidence", 0.6),
@@ -459,11 +460,17 @@ async def start_auto_trade(body: dict = {}) -> dict:  # noqa: B006
     _engine = StrategyEngine(config)
     _engine.start()
 
+    _promoted_experiment = {
+        "experiment_id": body.get("experiment_id"),
+        "experiment_name": body.get("experiment_name"),
+        "promoted_at": datetime.now(UTC).isoformat() if body.get("experiment_id") else None,
+    }
+
     # Start background signal generation loop
     if _auto_trade_task is None or _auto_trade_task.done():
         _auto_trade_task = asyncio.create_task(_auto_trade_loop())
 
-    return {"status": "running", "config": asdict(config)}
+    return {"status": "running", "config": asdict(config), "promoted": _promoted_experiment}
 
 
 @router.post("/auto-trade/stop")
@@ -482,6 +489,7 @@ async def auto_trade_status() -> dict:
         "running": _engine.is_running,
         "signals_count": len(_engine._signals),
         "config": asdict(_engine.config),
+        "promoted": _promoted_experiment,
     }
 
 

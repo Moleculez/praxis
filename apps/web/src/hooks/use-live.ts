@@ -101,10 +101,17 @@ export function useSubmitOrder() {
   });
 }
 
+export interface PromotedExperiment {
+  experiment_id: string | null;
+  experiment_name: string | null;
+  promoted_at: string | null;
+}
+
 export interface AutoTradeStatus {
   running: boolean;
   signals_count: number;
   config: Record<string, unknown>;
+  promoted?: PromotedExperiment | null;
 }
 
 export interface Signal {
@@ -135,7 +142,12 @@ export function useSignals() {
 export function useStartAutoTrade() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (config: { strategy?: string; min_confidence?: number }) =>
+    mutationFn: (config: {
+      strategy?: string;
+      min_confidence?: number;
+      experiment_id?: string;
+      experiment_name?: string;
+    }) =>
       apiFetch("/live/auto-trade/start", {
         method: "POST",
         body: JSON.stringify(config),
